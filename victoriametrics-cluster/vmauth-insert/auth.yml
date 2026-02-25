@@ -1,0 +1,6 @@
+unauthorized_user:
+  url_map:
+    - src_paths: ["/.*"]
+      url_prefix:
+        - "http://vminsert-1:8480/"
+        - "http://vminsert-2:8480/"

@@ -1,0 +1,3 @@
+- if: '{job=~"virtual-machine-cadvisor"}'
+  target_label: scrapedweek
+  replacement: "20269w"

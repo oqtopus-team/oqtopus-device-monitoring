@@ -1,0 +1,188 @@
+services:
+  # -----------------------------
+  # VictoriaMetrics Cluster
+  # -----------------------------
+  vmstorage-1:
+    image: victoriametrics/vmstorage:v1.127.0-cluster
+    container_name: vmstorage-1
+    restart: unless-stopped
+    volumes:
+      - vmstorage1-data:/storage
+    command:
+      - -storageDataPath=/storage
+      - -retentionPeriod=100y
+      - -httpListenAddr=:8482
+      - -vminsertAddr=:8400
+      - -vmselectAddr=:8401
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+    networks:
+      - monitoring
+
+  vmstorage-2:
+    image: victoriametrics/vmstorage:v1.127.0-cluster
+    container_name: vmstorage-2
+    restart: unless-stopped
+    volumes:
+      - vmstorage2-data:/storage
+    command:
+      - -storageDataPath=/storage
+      - -retentionPeriod=100y
+      - -httpListenAddr=:8482
+      - -vminsertAddr=:8400
+      - -vmselectAddr=:8401
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+    networks:
+      - monitoring
+
+  vmauth-insert:
+    image: victoriametrics/vmauth:v1.127.0
+    container_name: vmauth-insert
+    restart: unless-stopped
+    ports:
+      - "8427:8427"
+    # For vminsert registration, refer to vmauth/vmauth-insert/vmauth-insert.yaml
+    command:
+      - -httpListenAddr=:8427
+      - -auth.config=/etc/vmauth/auth.yml
+    volumes:
+      - ./vmauth-insert/auth.yml:/etc/vmauth/auth.yml:ro
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+      - NO_PROXY=*
+    depends_on:
+      - vminsert-1
+      - vminsert-2
+    networks:
+      - monitoring
+
+  vmauth-select:
+    image: victoriametrics/vmauth:v1.127.0
+    container_name: vmauth-select
+    restart: unless-stopped
+    ports:
+      - "8428:8428"
+    # For vmselect registration, refer to vmauth/vmauth-select/vmauth-select.yaml
+    command:
+      - -httpListenAddr=:8428
+      - -auth.config=/etc/vmauth/auth.yml
+    volumes:
+      - ./vmauth-select/auth.yml:/etc/vmauth/auth.yml:ro
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+      - NO_PROXY=*
+    depends_on:
+      - vmselect-1
+      - vmselect-2
+    networks:
+      - monitoring
+
+  vminsert-1:
+    image: victoriametrics/vminsert:v1.127.0-cluster
+    container_name: vminsert-1
+    restart: unless-stopped
+    command:
+      - -httpListenAddr=:8480
+      - -storageNode=vmstorage-1:8400
+      - -storageNode=vmstorage-2:8400
+    depends_on: [vmstorage-1, vmstorage-2]
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+    networks:
+      - monitoring
+
+  vminsert-2:
+    image: victoriametrics/vminsert:v1.127.0-cluster
+    container_name: vminsert-2
+    restart: unless-stopped
+    command:
+      - -httpListenAddr=:8480
+      - -storageNode=vmstorage-1:8400
+      - -storageNode=vmstorage-2:8400
+    depends_on: [vmstorage-1, vmstorage-2]
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+    networks:
+      - monitoring
+
+  vmselect-1:
+    image: victoriametrics/vmselect:v1.127.0-cluster
+    container_name: vmselect-1
+    restart: unless-stopped
+    ports:
+      - "8481:8481"
+    command:
+      - -httpListenAddr=:8481
+      - -storageNode=vmstorage-1:8401
+      - -storageNode=vmstorage-2:8401
+    depends_on: [vmstorage-1, vmstorage-2]
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+    networks:
+      - monitoring
+
+  vmselect-2:
+    image: victoriametrics/vmselect:v1.127.0-cluster
+    container_name: vmselect-2
+    restart: unless-stopped
+    command:
+      - -httpListenAddr=:8481
+      - -storageNode=vmstorage-1:8401
+      - -storageNode=vmstorage-2:8401
+    depends_on: [vmstorage-1, vmstorage-2]
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+    networks:
+      - monitoring
+
+  # vmagent for scraping metrics
+  vmagent:
+    image: victoriametrics/vmagent:v1.127.0
+    container_name: vmagent
+    restart: unless-stopped
+    ports:
+      - "8429:8429"
+    volumes:
+      - ./vmagent:/etc/prometheus:ro
+      - ./vmagent:/etc/vmagent
+      - ./weekly-relabeling-cron:/etc/weekly-relabeling-cron
+      - vmagent-data:/tmp/vmagent-remotewrite-data
+    command:
+      - -promscrape.config=/etc/prometheus/prometheus.yml
+      - -remoteWrite.url=http://vmauth-insert:8427/insert/0/prometheus/api/v1/write
+      - -remoteWrite.tmpDataPath=/tmp/vmagent-remotewrite-data
+      - -remoteWrite.showURL
+      - -remoteWrite.relabelConfig=/etc/weekly-relabeling-cron/relabel_weekly.yml
+      - -promscrape.configCheckInterval=30s
+    depends_on:
+      - vmauth-insert
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+      - NO_PROXY=*
+    networks:
+      - monitoring
+
+  # -----------------------------
+  # Weekly relabeling cron job
+  # -----------------------------
+  # Custom file worker for `scrapedweek` label
+  weekly-relabeling-cron:
+    build: ./weekly-relabeling-cron
+    container_name: weekly-relabeling-cron
+    volumes:
+      - ./weekly-relabeling-cron:/data
+    environment:
+      - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
+      - NO_PROXY=*
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+
+volumes:
+  vmstorage1-data:
+  vmstorage2-data:
+  vmagent-data:
