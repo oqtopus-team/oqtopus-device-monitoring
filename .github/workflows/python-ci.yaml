@@ -1,0 +1,121 @@
+name: Python CI
+
+on:
+  pull_request:
+  push:
+
+concurrency:
+  group: python-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------
+  # custom exporter: pytest
+  # -------------------------
+  component-ci:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - custom_exporters/quel1_metrics_exporter
+          - custom_exporters/quel1_se_metrics_exporter
+          - custom_exporters/cryo_metrics_exporter
+          - api_server
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.component }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read Python version from pyproject.toml
+        id: get_python_version
+        run: |
+          FILE="pyproject.toml"
+          VERSION=$(grep '^requires-python' "$FILE" | head -n 1 | sed -E 's/.*= *"(.*)"/\1/')
+          if [ -z "$VERSION" ]; then
+            VERSION=$(grep 'python =' "$FILE" | head -n 1 | sed -E 's/.*= *"(.*)"/\1/')
+          fi
+          CLEAN_VERSION=$(echo "$VERSION" | sed -E 's/[^0-9.]//g')
+          echo "Detected Python requirement: $VERSION (Clean: $CLEAN_VERSION)"
+          echo "clean_version=$CLEAN_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        id: setup_python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "${{ steps.get_python_version.outputs.clean_version }}"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          cache: true
+          python: "${{ steps.setup_python.outputs.python-version }}"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Type check (mypy)
+        run: uv run mypy .
+
+      - name: Run pytest
+        run: uv run pytest -q
+
+  # -------------------------
+  # Docker Compose Build and Smoke Test for each component
+  # -------------------------
+  docker-smoke-test:
+    runs-on: ubuntu-latest
+    needs: component-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - custom_exporters/quel1_metrics_exporter
+          - custom_exporters/quel1_se_metrics_exporter
+          - custom_exporters/cryo_metrics_exporter
+          - api_server
+          - grafana-and-loki
+          - victoriametrics-cluster
+          - node-exporter_and_cAdvisor
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if compose.yaml exists
+        id: check_file
+        working-directory: ${{ matrix.component }}
+        run: |
+          if [ -f "compose.yaml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and run with Docker Compose
+        if: steps.check_file.outputs.exists == 'true'
+        working-directory: ${{ matrix.component }}
+        run: |
+          docker compose up -d --build
+
+      - name: Show container logs on failure
+        if: failure()
+        working-directory: ${{ matrix.component }}
+        run: |
+          docker compose -f compose.yaml logs || true
+
+      - name: Stop containers
+        if: always()
+        working-directory: ${{ matrix.component }}
+        run: |
+          docker compose -f compose.yaml down || true
