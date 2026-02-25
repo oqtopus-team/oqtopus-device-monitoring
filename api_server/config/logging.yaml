@@ -1,0 +1,57 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  json:
+    class: pythonjsonlogger.jsonlogger.JsonFormatter
+    format: "%(asctime)s %(levelname)s %(name)s %(message)s"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: json
+    stream: ext://sys.stdout
+  file:
+    class: logging.handlers.TimedRotatingFileHandler
+    level: INFO
+    formatter: json
+    filename: ./logs/api-server.log
+    when: 'midnight'
+    interval: 1
+    backupCount: 7
+    encoding: utf8
+
+loggers:
+  api-server:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  api-server.api.metrics:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  api-server.api.meta:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  api-server.metadata-executor:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  api-server.request-validation:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  api-server.operations:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+  api-server.victoria-metrics:
+    level: INFO
+    handlers: [console, file]
+    propagate: no
+
+root:
+  level: INFO
+  handlers: [console, file]

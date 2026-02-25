@@ -1,0 +1,96 @@
+[project]
+name = "api_server"
+version = "0.1.0"
+authors = [
+    { name = "oqtopus-team", email = "oqtopus-team@googlegroups.com" },
+]
+readme = "README.md"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: Apache Software License",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.123.3",
+    "httpx>=0.28.1",
+    "omegaconf>=2.3.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-json-logger>=3.2.1",
+    "pyyaml>=6.0.0",
+    "ruff>=0.14.10",
+    "types-pyyaml>=6.0.12.20250915",
+    "uvicorn>=0.38.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[dependency-groups]
+dev = [
+    "datamodel-code-generator>=0.37.0",
+    "mypy>=1.11.2",
+    "pytest>=9.0.1",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
+]
+
+[tool.pytest_env]
+ENV = "local"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=xml"
+
+[tool.ruff]
+preview = true
+include = [
+  "src/**/*.py",
+  "tests/**/*.py",
+]
+lint.select = ["ALL"]
+lint.ignore = [
+  "COM812",
+  "CPY001",
+  "D100",
+  "D104",
+  "D107",
+  "D203",
+  "D213",
+  "ISC001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "ANN201",
+  "ANN205",
+  "ANN401",
+  "CPY001",
+  "D",
+  "ERA001",
+  "E501",
+  "PLC1901",
+  "PLR2004",
+  "PLR6301",
+  "S101",
+  "SLF001",
+]
+
+[tool.mypy]
+files = ["src", "tests"]
+exclude = ["src/schemas/.*"]
+ignore_missing_imports = true
