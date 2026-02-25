@@ -1,0 +1,46 @@
+services:
+  # vmagent pulls metrics from node-exporter and cAdvisor
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:v1.9.1
+    security_opt:
+      - apparmor:unconfined
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: "host"
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+      # Added the following mounts for systemd-related metrics collection
+      - /run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
+      - /run/systemd:/run/systemd:ro
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      # Added the following --collector options to collect additional metrics
+      - --collector.systemd
+      - --collector.processes
+      - --collector.interrupts
+      - --collector.tcpstat
+      - --collector.cpu.info
+    environment:
+      - TZ=${TIMEZONE:-UTC}
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: cadvisor
+    ports:
+      - "8088:8080"
+    # healthcheck:
+    #   test: ["NONE"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: unless-stopped
+    environment:
+      - TZ=${TIMEZONE:-UTC}
