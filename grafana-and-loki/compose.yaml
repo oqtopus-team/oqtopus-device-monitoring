@@ -1,0 +1,55 @@
+services:
+  grafana:
+    image: grafana/grafana:12.3.0-18481575143-ubuntu
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/images:/usr/share/grafana/public/img/:ro # directory for custom images
+    environment:
+      - TZ=${TIMEZONE_GRAFANA_AND_LOKI:-UTC}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_DEFAULT_THEME=light
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SERVER_SERVE_FROM_SUB_PATH=false
+      - NO_PROXY=*
+      # for Loki
+      - GF_FEATURE_TOGGLES_ENABLE=alertingCentralAlertHistory
+      - GF_FEATURE_TOGGLES_ALERTINGCENTRALALERTHISTORY=true
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_UNIFIED_ALERTING_STATE_HISTORY_ENABLED=true
+      - GF_UNIFIED_ALERTING_STATE_HISTORY_BACKEND=loki
+      - GF_UNIFIED_ALERTING_STATE_HISTORY_LOKI_REMOTE_URL=http://loki:3100
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - monitoring
+
+  loki:
+    image: grafana/loki:3.5.8
+    container_name: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    environment:
+      - TZ=${TIMEZONE_GRAFANA_AND_LOKI:-UTC}
+      - NO_PROXY=*
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+
+volumes:
+  grafana-data:
+  loki-data:
