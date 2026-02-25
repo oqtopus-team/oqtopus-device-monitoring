@@ -1,0 +1,20 @@
+services:
+  quel1-metrics-exporter:
+    build:
+      context: .
+    container_name: quel1-metrics-exporter
+    ports:
+      - "9102:9102"
+    volumes:
+      # mount config files
+      - ${QUEL1_EXPORTER_CONFIG_PATH:-./config/config.yaml}:/config/config.yaml:ro
+      - ${QUEL1_EXPORTER_LOGGING_CONFIG_PATH:-./config/logging.yaml}:/config/logging.yaml:ro
+      # connect log directory
+      - ${QUEL1_EXPORTER_LOGGING_DIR_PATH:-./logs}:/logs
+    environment:
+      - MAX_WORKERS=${MAX_WORKERS:-0}
+      - EXPORTER_PORT=${EXPORTER_PORT:-9102}
+      - PING_TIMEOUT=${PING_TIMEOUT:-5}
+      - PING_COUNT=${PING_COUNT:-3}
+      - SERVER_TIMEZONE=${SERVER_TIMEZONE:-Asia/Tokyo}
+    restart: unless-stopped
