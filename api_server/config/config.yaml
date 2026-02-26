@@ -5,7 +5,7 @@ server:
 
 # VictoriaMetrics connection settings
 victoria_metrics:
-  url: "http://10.20.109.2:8428"
+  url: "http://host.docker.internal:8428"
 
 # Operation-specific settings
 operations:

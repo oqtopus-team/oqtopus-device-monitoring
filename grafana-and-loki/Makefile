@@ -26,9 +26,6 @@ up: ## replace IP address and docker compose up -d
 		set -eu; \
 		mkdir -p $(TARGET_DIR); \
 		cp $(MOUNT_DIR)/*.json $(TARGET_DIR)/; \
-		for file in $(TARGET_DIR)/*.json; do \
-			sed -E "s|(http://)[^:/]+(:3000/public/img)|\1$(IP_ADDR)\2|g" $$file > $$file.tmp && mv $$file.tmp $$file; \
-		done; \
 	'
 	@echo "Updated dashboard JSON files with current IP address $(IP_ADDR)."
 
