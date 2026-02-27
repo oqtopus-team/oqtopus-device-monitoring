@@ -59,7 +59,7 @@ victoriametrics-cluster/
 ## Getting started
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Main components
@@ -127,7 +127,7 @@ export TARGET_JOBS_REGEX='virtual-machine|new-exporter|another-job'
 After making changes, restart weekly-relabeling-cron.
 
 ```bash
-docker-compose up -d --build weekly-relabeling-cron
+docker compose up -d --build weekly-relabeling-cron
 ```
 
 ### Modifying timezone
@@ -149,8 +149,8 @@ The example of `.env` is located as `.env.example`.
 This allows you to manage environment variables separately from the `compose.yaml` configuration. After creating or modifying the `.env` file, restart all containers:
 
 ```bash
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 ```
 
 **Note**: Changing the timezone affects:
@@ -252,5 +252,5 @@ Data is persisted in the following volumes:
 To completely remove all data:
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```

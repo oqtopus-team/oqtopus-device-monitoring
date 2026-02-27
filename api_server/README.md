@@ -11,7 +11,7 @@ A FastAPI-based REST API server for managing metrics and metadata in VictoriaMet
 
 ## Configuration and Logging
 
-For detailed configuration options, including server settings, VictoriaMetrics connection parameters, logging setup, and environment variable overrides, see the Configuration section in `api-server.md`.
+For detailed configuration options, including server settings, VictoriaMetrics connection parameters, logging setup, and environment variable overrides, see the Configuration section in [oqtopus-device-monitoring/docs/api-server/api-server.md](../docs/api-server/api-server.md).
 
 ### Directory permissions
 

@@ -2,32 +2,16 @@ SHELL := bash
 SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
-.PHONY: help run down
+.PHONY: help up down
 
-COMPOSE_CMD = docker compose
 
-MOUNT_DIR := /etc/grafana/dashboards
-TARGET_DIR := /var/lib/grafana/dashboards
-CONTAINER_NAME := grafana
-
-# get IP address of the default network interface by ip command
-DEV := $(shell ip route show default | awk '/default/ {print $$5}')
-IP_ADDR := $(shell ip -4 addr show "$(DEV)" | awk '/inet/ {sub(/\/.*/, "", $$2); print $$2}')
-
-help: ## show this help message
+help:
 	@echo "Usage:"
 	@echo "  make up		# docker compose up -d"
 	@echo "  make down		# docker compose down"
-	@echo "$(IP_ADDR)"
 
-up: ## replace IP address and docker compose up -d
-	@$(COMPOSE_CMD) up -d
-	@docker exec $(CONTAINER_NAME) bash -lc '\
-		set -eu; \
-		mkdir -p $(TARGET_DIR); \
-		cp $(MOUNT_DIR)/*.json $(TARGET_DIR)/; \
-	'
-	@echo "Updated dashboard JSON files with current IP address $(IP_ADDR)."
+up:
+	docker compose up -d
 
-down: ## docker compose down
-	@$(COMPOSE_CMD) down
+down:
+	docker compose down
