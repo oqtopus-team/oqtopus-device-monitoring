@@ -1,0 +1,35 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  json:
+    class: pythonjsonlogger.jsonlogger.JsonFormatter
+    format: "%(asctime)s.%(msecs)03d %(levelname)s %(filename)s:%(lineno)d %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S%z"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: json
+    stream: ext://sys.stdout
+
+  file:
+    class: logging.handlers.TimedRotatingFileHandler
+    level: DEBUG
+    formatter: json
+    filename: /logs/cryo_metrics_exporter.log
+    when: "midnight"
+    interval: 1
+    backupCount: 7
+    encoding: utf-8
+
+loggers:
+  cryo-metrics-exporter:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: no
+
+root:
+  level: DEBUG
+  handlers: [console, file]

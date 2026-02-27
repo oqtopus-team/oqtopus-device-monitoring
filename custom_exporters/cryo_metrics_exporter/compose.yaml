@@ -1,0 +1,17 @@
+services:
+  cryo-metrics-exporter:
+    build: .
+    container_name: cryo-metrics-exporter
+    ports:
+      - "9101:9101"
+    volumes:
+      # mount config files
+      - ${CRYO_EXPORTER_CONFIG_PATH:-./config/config.yaml}:/config/config.yaml:ro
+      - ${CRYO_EXPORTER_LOGGING_CONFIG_PATH:-./config/logging.yaml}:/config/logging.yaml:ro
+      # connect log directory
+      - ${CRYO_EXPORTER_LOGGING_DIR_PATH:-./logs}:/logs
+    environment:
+      - EXPORTER_PORT=${EXPORTER_PORT:-9101}
+      - EXPORTER_TIMEZONE=${EXPORTER_TIMEZONE:-UTC}
+      - FTP_PASSWORD=${FTP_PASSWORD}
+    restart: unless-stopped
