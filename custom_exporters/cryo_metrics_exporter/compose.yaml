@@ -10,6 +10,8 @@ services:
       - ${CRYO_EXPORTER_LOGGING_CONFIG_PATH:-./config/logging.yaml}:/config/logging.yaml:ro
       # connect log directory
       - ${CRYO_EXPORTER_LOGGING_DIR_PATH:-./logs}:/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - EXPORTER_PORT=${EXPORTER_PORT:-9101}
       - EXPORTER_TIMEZONE=${EXPORTER_TIMEZONE:-UTC}

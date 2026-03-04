@@ -157,6 +157,8 @@ services:
       - -promscrape.configCheckInterval=30s
     depends_on:
       - vmauth-insert
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - TZ=${TIMEZONE_VM_CLUSTER:-UTC}
       - NO_PROXY=*
