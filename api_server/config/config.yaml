@@ -1,0 +1,12 @@
+# Server configuration
+server:
+  timezone: "Asia/Tokyo"
+  port: 8080
+
+# VictoriaMetrics connection settings
+victoria_metrics:
+  url: "http://host.docker.internal:8428"
+
+# Operation-specific settings
+operations:
+  lock_timeout_hours: 1

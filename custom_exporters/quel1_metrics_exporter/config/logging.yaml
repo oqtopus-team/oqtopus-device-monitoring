@@ -1,0 +1,43 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  json:
+    class: pythonjsonlogger.jsonlogger.JsonFormatter
+    format: "%(asctime)s.%(msecs)03d %(levelname)s %(name)s %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S%z"
+    allowed_fields:
+      - asctime
+      - msecs
+      - levelname
+      - name
+      - message
+      - target_host
+      - target_ip
+      - status
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: DEBUG
+    formatter: json
+    stream: ext://sys.stdout
+
+  file:
+    class: logging.handlers.TimedRotatingFileHandler
+    level: DEBUG
+    formatter: json
+    filename: /logs/qubit_controller.log
+    when: 'midnight'
+    interval: 1
+    backupCount: 7
+    encoding: utf-8
+
+loggers:
+  qubit_controller:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: no
+
+root:
+  level: WARN
+  handlers: [console, file]

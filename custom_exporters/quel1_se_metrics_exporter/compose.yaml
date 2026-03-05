@@ -1,0 +1,27 @@
+services:
+  quel1-se-metrics-exporter:
+    build:
+      context: .
+    container_name: quel1-se-metrics-exporter
+    ports:
+      - "9103:9103"
+    volumes:
+      # mount config files
+      - ${QUEL1SE_EXPORTER_CONFIG_PATH:-./config/config.yaml}:/config/config.yaml:ro
+      - ${QUEL1SE_EXPORTER_LOGGING_CONFIG_PATH:-./config/logging.yaml}:/config/logging.yaml:ro
+      # connect log directory
+      - ${QUEL1SE_EXPORTER_LOGGING_DIR_PATH:-./logs}:/logs
+    environment:
+      - MAX_WORKERS=${MAX_WORKERS:-0}
+      - QUBIT_CONTROLLER_EXPORTER_PORT=${QUBIT_CONTROLLER_EXPORTER_PORT:-9103}
+      - EXPORTER_TIMEZONE=${EXPORTER_TIMEZONE:-Asia/Tokyo}
+      - QUEL1SE_TIMEOUT=${QUEL1SE_TIMEOUT:-5}
+    restart: unless-stopped
+    tmpfs:
+      - /run/quelware:mode=1777
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    driver: bridge

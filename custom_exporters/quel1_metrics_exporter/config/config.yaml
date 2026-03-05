@@ -1,0 +1,18 @@
+exporter:
+  port: 9102
+  timezone: "Asia/Tokyo"
+
+ping:
+  timeout: 5
+  count: 3
+  # targets to monitor
+  targets:
+    - name: "quel001"
+      controller_type: "quel1"
+      ip: "quel001"
+    - name: "quel002"
+      controller_type: "quel1"
+      ip: "quel002"
+    - name: "quel003"
+      controller_type: "quel1"
+      ip: "quel003"

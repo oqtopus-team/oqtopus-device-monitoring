@@ -1,0 +1,43 @@
+apiVersion: 1
+
+contactPoints:
+  # Sample configuration for a Slack contact point
+  - orgId: 1
+    name: slack
+    receivers:
+      - uid: slack_uid
+        type: slack
+        settings:
+          httpMethod: POST
+          url: https://hooks.slack.com/services/XXXX/YYYY/ZZZZ  # Replace with your actual Slack webhook URL
+          # The example Slack message template
+          title: "[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}"
+          text: |
+            {{ if gt (len .Alerts.Firing) 0 }}
+            {{ range .Alerts.Firing }}
+            Summary: {{ .Annotations.summary }}
+            Last value: {{ .Annotations.currentValue }}
+            Fired at: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+            Panel URL: http://localhost:3000/d/{{ .Annotations.dashboardUid }}?viewPanel={{ .Annotations.panelId}}
+            {{ end }}
+            {{ end }}
+            {{ if gt (len .Alerts.Resolved) 0 }}
+            {{ range .Alerts.Resolved }}
+            Summary: {{ .Annotations.resolvedMessage }}
+            Last value: {{ .Annotations.currentValue }}
+            Resolved at: {{ .EndsAt.Format "2006-01-02 15:04:05" }}
+            Panel URL: http://localhost:3000/d/{{ .Annotations.dashboardUid }}?viewPanel={{ .Annotations.panelId}}
+            {{ end }}
+            {{ end }}
+        disableResolveMessage: false
+
+policies:
+  - orgId: 1
+    receiver: slack  # Replace with the desired contact point name defined above
+    group_by:
+      - grafana_folder
+      - alertname
+    group_wait: 0s
+    group_interval: 1s
+    repeat_interval: 4h
+    routes: []

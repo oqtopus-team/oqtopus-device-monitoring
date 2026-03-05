@@ -1,0 +1,286 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: refrigerator_alerts
+    folder: alert_rules
+    interval: 1m
+    rules:
+      # Alert rule for Helium flow rate
+      - uid: df3zl1tjofim8f
+        title: alert_flux_Helium_flow
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: vmcluster
+            model:
+              editorMode: code
+              expr: round(refrigerator_helium_flow{unit="millimoles per second"}, 0.01)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 81.5  # Threshold value for Helium flow rate
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: adv8kqf
+        panelId: 13
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          dashboardUid: adv8kqf
+          panelId: "13"
+          summary: "Helium flow rate of main circulation has exceeded the threshold."
+          currentValue: "{{ $values.A.Value }}[mmol/s]"
+          resolvedMessage: "{{ $labels.alertname }} has been resolved."
+        isPaused: false
+
+      # Alert rule for temperature at 50K stage
+      - uid: df42u4gwt8mbkf
+        title: alert_temperature_50K
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: vmcluster
+            model:
+              editorMode: code
+              expr: round(refrigerator_temperature{stage="plate_50k"}, 0.01)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 41  # Threshold temperature at 50K stage
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: adv8kqf
+        panelId: 2
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          dashboardUid: adv8kqf
+          panelId: "2"
+          summary: "Temperature at 50K stage has exceeded the threshold."
+          currentValue: "{{ $values.A.Value }}[K]"
+          resolvedMessage: "{{ $labels.alertname }} has been resolved."
+        isPaused: false
+
+      # Alert rule for temperature at 4K stage
+      - uid: af42u5v7en18ga
+        title: alert_temperature_4K
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: vmcluster
+            model:
+              editorMode: code
+              expr: round(refrigerator_temperature{stage="plate_4k"}, 0.01)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5 # Threshold temperature at 4K stage
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: adv8kqf
+        panelId: 3
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          dashboardUid: adv8kqf
+          panelId: "3"
+          summary: "Temperature at 4K stage has exceeded the threshold."
+          currentValue: "{{ $values.A.Value }}[K]"
+          resolvedMessage: "{{ $labels.alertname }} has been resolved."
+        isPaused: false
+
+      # Alert rule for temperature at Still plate
+      - uid: ef42u7zmoavwgb
+        title: alert_temperature_Still
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: vmcluster
+            model:
+              editorMode: code
+              expr: round(refrigerator_temperature{stage="still"}, 0.01)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 2 # Threshold temperature at Still plate
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: adv8kqf
+        panelId: 4
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          dashboardUid: adv8kqf
+          panelId: "4"
+          summary: "Temperature at Still plate has exceeded the threshold."
+          currentValue: "{{ $values.A.Value }}[K]"
+          resolvedMessage: "{{ $labels.alertname }} has been resolved."
+        isPaused: false
+
+      # Alert rule for temperature at MXC plate
+      - uid: ff42uag61qjuoe
+        title: alert_temperature_MXC
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: vmcluster
+            model:
+              editorMode: code
+              expr: round(refrigerator_temperature{stage="mxc"}, 0.01)
+              instant: true
+              intervalMs: 1000
+              legendFormat: __auto
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1 # Threshold temperature at MXC plate
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        dashboardUid: adv8kqf
+        panelId: 5
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          dashboardUid: adv8kqf
+          panelId: "5"
+          summary: "Temperature at MXC plate has exceeded the threshold."
+          currentValue: "{{ $values.A.Value }}[K]"
+          resolvedMessage: "{{ $labels.alertname }} has been resolved."
+        isPaused: false

@@ -1,0 +1,18 @@
+services:
+  api-server:
+    build: .
+    container_name: api-server
+    ports:
+      - "8080:8080"
+    volumes:
+      # mount config files
+      - ${API_SERVER_CONFIG_PATH:-./config/config.yaml}:/config/config.yaml:ro
+      - ${API_SERVER_LOGGING_CONFIG_PATH:-./config/logging.yaml}:/config/logging.yaml:ro
+      # connect log directory
+      - ${API_SERVER_LOGGING_DIR_PATH:-./logs}:/app/logs
+      - ${API_SERVER_OPERATION_HISTORY_PATH:-./data}:/app/data
+    environment:
+      - API_SERVER_HOST=0.0.0.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

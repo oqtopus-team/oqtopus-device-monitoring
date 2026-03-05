@@ -1,0 +1,12 @@
+exporter:
+  port: 9103
+  timezone: "Asia/Tokyo"
+
+quel1se:
+  timeout: 5 # per-target timeout in seconds
+  # QuEL-1 SE targets to monitor
+  targets:
+    - name: "quel1se-riken8"
+      wss_ip: "your.wss.ip.address"
+      css_ip: "your.css.ip.address"
+      boxtype: "quel1se-riken8"

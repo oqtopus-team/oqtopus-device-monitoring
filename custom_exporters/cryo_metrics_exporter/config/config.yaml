@@ -1,0 +1,27 @@
+# Basic exporter settings
+exporter:
+  port: 9101
+  timezone: "Asia/Tokyo"
+  device_name: "BlueForsXD_BF_No5"
+
+# Data retrieval and time window settings
+retrieval:
+  scrape_interval_sec: 60
+  max_expand_windows:
+    http: 5
+    ftp: 5
+
+# Data source definitions
+sources:
+  http:
+    datasource_timezone: "Asia/Tokyo"
+    url: "http://url.of.cryo.metrics"
+    port: 1080
+    timeout_sec: 5
+  ftp:
+    datasource_timezone: "Asia/Tokyo"
+    host: "ip.of.ftp.server"
+    port: 2121
+    user: "ftpuser"
+    base_path: "~/"
+    timeout_sec: 5
