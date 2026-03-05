@@ -42,7 +42,7 @@ url: http://host.docker.internal:8428/select/0/prometheus
 Example:
 
 ```yaml
-url: http://10.20.108.113:8428/select/0/prometheus
+url: http://10.20.30.40:8428/select/0/prometheus
 ```
 
 This URL must be reachable from the Grafana container.

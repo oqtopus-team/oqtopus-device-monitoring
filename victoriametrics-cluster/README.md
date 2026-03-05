@@ -97,7 +97,7 @@ scrape_configs:
   - job_name: "node"
     scrape_interval: 10s
     static_configs:
-      - targets: ["10.20.108.113:9100"]
+      - targets: ["10.20.30.40:9100"]
 
   # Add new job
   - job_name: "new-exporter"

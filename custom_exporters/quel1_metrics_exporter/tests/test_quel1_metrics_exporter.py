@@ -467,7 +467,7 @@ class TestLoadConfig:
                 "timeout": 5,
                 "targets": [
                     {
-                        "name": "qube001",
+                        "name": "quel001",
                         "ip": "172.20.32.211",
                         "controller_type": "quel1",
                     }
@@ -495,7 +495,7 @@ class TestLoadConfig:
             "ping": {
                 "targets": [
                     {
-                        "name": "qube001",
+                        "name": "quel001",
                         "ip": "172.20.32.211",
                         "controller_type": "quel1",
                     }
@@ -548,7 +548,7 @@ class TestLoadConfig:
                 "count": 2,
                 "targets": [
                     {
-                        "name": "qube001",
+                        "name": "quel001",
                         "ip": "172.20.32.211",
                         "controller_type": "quel1",
                     }
@@ -588,7 +588,7 @@ class TestLoadConfig:
                 "timeout": 5,
                 "targets": [
                     {
-                        "name": "qube001",
+                        "name": "quel001",
                         "controller_type": "quel1",
                     },
                     {
@@ -596,7 +596,7 @@ class TestLoadConfig:
                         "controller_type": "quel1",
                     },
                     {
-                        "name": "qube003",
+                        "name": "quel003",
                         "ip": "172.20.32.211",
                     },
                 ],

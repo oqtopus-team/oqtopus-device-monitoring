@@ -7,12 +7,12 @@ ping:
   count: 3
   # targets to monitor
   targets:
-    - name: "qube001"
+    - name: "quel001"
       controller_type: "quel1"
-      ip: "qube001"
-    - name: "qube002"
+      ip: "quel001"
+    - name: "quel002"
       controller_type: "quel1"
-      ip: "qube002"
-    - name: "qube003"
+      ip: "quel002"
+    - name: "quel003"
       controller_type: "quel1"
-      ip: "qube003"
+      ip: "quel003"
