@@ -2,15 +2,14 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
-from prometheus_client.core import GaugeMetricFamily
-from pytest_mock import MockerFixture
-
 from cryo_metrics_exporter import (
     METRIC_CONFIGS,
     CustomCollector,
     InternalServerError,
     MetricFamilyType,
 )
+from prometheus_client.core import GaugeMetricFamily
+from pytest_mock import MockerFixture
 
 
 class TestComputeTimeRanges:
@@ -28,8 +27,8 @@ class TestComputeTimeRanges:
         expected = {
             "from_http": now - timedelta(seconds=60),
             "to_http": now,
-            "from_ftp": now - timedelta(seconds=60),
-            "to_ftp": now,
+            "from_smb": now - timedelta(seconds=60),
+            "to_smb": now,
         }
 
         # Act
@@ -44,7 +43,7 @@ class TestComputeTimeRanges:
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 5
-        collector.empty_count_ftp = 5
+        collector.empty_count_smb = 5
 
         now = datetime.now(collector._tz_exporter).replace(microsecond=0)
         mocker.patch("cryo_metrics_exporter.datetime").now.return_value = now
@@ -52,8 +51,8 @@ class TestComputeTimeRanges:
         expected = {
             "from_http": now - timedelta(seconds=60 * 5),
             "to_http": now,
-            "from_ftp": now - timedelta(seconds=60 * 5),
-            "to_ftp": now,
+            "from_smb": now - timedelta(seconds=60 * 5),
+            "to_smb": now,
         }
 
         # Act
@@ -122,10 +121,10 @@ class TestAddMetrics:
             assert metric_family.samples[0].labels[label_name] == label_value
 
 
-class TestProcessFTPData:
-    """Test suite for _process_ftp_data method."""
+class TestProcessSMBData:
+    """Test suite for _process_smb_data method."""
 
-    def test_process_ftp_data_adds_pressure_metrics_with_unit_conversions(
+    def test_process_smb_data_adds_pressure_metrics_with_unit_conversions(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
@@ -133,7 +132,7 @@ class TestProcessFTPData:
         metric_families = CustomCollector.setup_metric_families()
         mock_add_metrics = mocker.patch.object(CustomCollector, "_add_metrics")
 
-        ftp_results = [
+        smb_results = [
             {
                 "labels": {
                     "device_name": "test",
@@ -147,7 +146,7 @@ class TestProcessFTPData:
         ]
 
         # Act
-        collector._process_ftp_data(ftp_results, metric_families)
+        collector._process_smb_data(smb_results, metric_families)
 
         # Assert
         assert mock_add_metrics.call_count == 2
@@ -157,7 +156,7 @@ class TestProcessFTPData:
         assert first_call_args[0]["labels"]["unit"] == "millibar"
         assert second_call_args[0]["labels"]["unit"] in {"kilopascal", "pascal"}
 
-    def test_process_ftp_data_adds_flow_metrics_with_unit_conversions(
+    def test_process_smb_data_adds_flow_metrics_with_unit_conversions(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
@@ -165,7 +164,7 @@ class TestProcessFTPData:
         metric_families = CustomCollector.setup_metric_families()
         mock_add_metrics = mocker.patch.object(CustomCollector, "_add_metrics")
 
-        ftp_results = [
+        smb_results = [
             {
                 "labels": {
                     "device_name": "test",
@@ -178,7 +177,7 @@ class TestProcessFTPData:
         ]
 
         # Act
-        collector._process_ftp_data(ftp_results, metric_families)
+        collector._process_smb_data(smb_results, metric_families)
 
         # Assert
         assert mock_add_metrics.call_count == 2
@@ -188,7 +187,7 @@ class TestProcessFTPData:
         assert first_call_args[0]["labels"]["unit"] == "millimoles per second"
         assert second_call_args[0]["labels"]["unit"] == "micromoles per second"
 
-    def test_process_ftp_data_adds_compressor_pressure_with_unit_conversions(
+    def test_process_smb_data_adds_compressor_pressure_with_unit_conversions(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
@@ -196,7 +195,7 @@ class TestProcessFTPData:
         metric_families = CustomCollector.setup_metric_families()
         mock_add_metrics = mocker.patch.object(CustomCollector, "_add_metrics")
 
-        ftp_results = [
+        smb_results = [
             {
                 "labels": {
                     "device_name": "test",
@@ -210,7 +209,7 @@ class TestProcessFTPData:
         ]
 
         # Act
-        collector._process_ftp_data(ftp_results, metric_families)
+        collector._process_smb_data(smb_results, metric_families)
 
         # Assert
         assert mock_add_metrics.call_count == 2
@@ -220,7 +219,7 @@ class TestProcessFTPData:
         assert first_call_args[0]["labels"]["unit"] == "psig"
         assert second_call_args[0]["labels"]["unit"] == "megapascal"
 
-    def test_process_ftp_data_skips_empty_ftp_results(
+    def test_process_smb_data_skips_empty_smb_results(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
@@ -228,10 +227,10 @@ class TestProcessFTPData:
         metric_families = CustomCollector.setup_metric_families()
         mock_add_metrics = mocker.patch.object(CustomCollector, "_add_metrics")
 
-        ftp_results: list[dict[str, Any]] = []
+        smb_results: list[dict[str, Any]] = []
 
         # Act
-        collector._process_ftp_data(ftp_results, metric_families)
+        collector._process_smb_data(smb_results, metric_families)
 
         # Assert
         mock_add_metrics.assert_not_called()
@@ -408,20 +407,20 @@ class TestUpdateEmptyCounts:
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
-        collector.empty_count_ftp = 0
+        collector.empty_count_smb = 0
 
         # Act
         collector._update_empty_counts(
             [True, False],
-            is_ftp_retry_needed=False,
+            is_smb_retry_needed=False,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
         # Assert
         assert collector.empty_count_http == 1
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
     def test_update_empty_counts_http_retry_flag_caps_at_max_expand_windows_minus_1(
         self, sample_config: dict
@@ -429,14 +428,14 @@ class TestUpdateEmptyCounts:
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 4
-        collector.empty_count_ftp = 0
+        collector.empty_count_smb = 0
 
         # Act
         collector._update_empty_counts(
             [True],
-            is_ftp_retry_needed=False,
+            is_smb_retry_needed=False,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
@@ -449,14 +448,14 @@ class TestUpdateEmptyCounts:
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 3
-        collector.empty_count_ftp = 0
+        collector.empty_count_smb = 0
 
         # Act
         collector._update_empty_counts(
             [False],
-            is_ftp_retry_needed=False,
+            is_smb_retry_needed=False,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=5,
         )
 
@@ -469,14 +468,14 @@ class TestUpdateEmptyCounts:
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 2
-        collector.empty_count_ftp = 0
+        collector.empty_count_smb = 0
 
         # Act
         collector._update_empty_counts(
             [True],
-            is_ftp_retry_needed=False,
+            is_smb_retry_needed=False,
             is_http_internal_server_error=True,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
@@ -489,97 +488,97 @@ class TestUpdateEmptyCounts:
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 2
-        collector.empty_count_ftp = 0
+        collector.empty_count_smb = 0
 
         # Act
         collector._update_empty_counts(
             [False],
-            is_ftp_retry_needed=False,
+            is_smb_retry_needed=False,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
         # Assert
         assert collector.empty_count_http == 2
 
-    def test_update_empty_counts_ftp_retry_needed_increments_empty_count_ftp(
+    def test_update_empty_counts_smb_retry_needed_increments_empty_count_smb(
         self, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
-        collector.empty_count_ftp = 0
+        collector.empty_count_smb = 0
 
         # Act
         collector._update_empty_counts(
             [],
-            is_ftp_retry_needed=True,
+            is_smb_retry_needed=True,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
         # Assert
-        assert collector.empty_count_ftp == 1
+        assert collector.empty_count_smb == 1
         assert collector.empty_count_http == 0
 
-    def test_update_empty_counts_ftp_retry_caps_at_max_expand_windows_minus_1(
+    def test_update_empty_counts_smb_retry_caps_at_max_expand_windows_minus_1(
         self, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
-        collector.empty_count_ftp = 4
+        collector.empty_count_smb = 4
 
         # Act
         collector._update_empty_counts(
             [],
-            is_ftp_retry_needed=True,
+            is_smb_retry_needed=True,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
         # Assert
-        assert collector.empty_count_ftp == 4
+        assert collector.empty_count_smb == 4
 
-    def test_update_empty_counts_ftp_no_retry_resets_empty_count_ftp(
+    def test_update_empty_counts_smb_no_retry_resets_empty_count_smb(
         self, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
-        collector.empty_count_ftp = 3
+        collector.empty_count_smb = 3
 
         # Act
         collector._update_empty_counts(
             [],
-            is_ftp_retry_needed=False,
+            is_smb_retry_needed=False,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=False,
+            is_smb_internal_server_error=False,
             http_data_count=0,
         )
 
         # Assert
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
-    def test_update_empty_counts_ftp_internal_server_error_does_not_update(
+    def test_update_empty_counts_smb_internal_server_error_does_not_update(
         self, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
-        collector.empty_count_ftp = 2
+        collector.empty_count_smb = 2
 
         # Act
         collector._update_empty_counts(
             [],
-            is_ftp_retry_needed=True,
+            is_smb_retry_needed=True,
             is_http_internal_server_error=False,
-            is_ftp_internal_server_error=True,
+            is_smb_internal_server_error=True,
             http_data_count=0,
         )
 
         # Assert
-        assert collector.empty_count_ftp == 2
+        assert collector.empty_count_smb == 2

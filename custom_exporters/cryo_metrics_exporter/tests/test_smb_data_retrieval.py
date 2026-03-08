@@ -1,20 +1,16 @@
 from datetime import datetime, timedelta
-from ftplib import error_perm  # noqa: S402
-from unittest.mock import MagicMock
-
-from pytest_mock import MockerFixture
 
 from cryo_metrics_exporter import CustomCollector
+from pytest_mock import MockerFixture
 
 
-class TestFetchFTPDataGeneric:
-    """Test suite for _fetch_ftp_data_generic method."""
+class TestFetchSMBDataGeneric:
+    """Test suite for _fetch_smb_data_generic method."""
 
-    def test_fetch_ftp_data_generic_yields_datetime_and_parsed_data_from_single_file(
+    def test_fetch_smb_data_generic_yields_datetime_and_parsed_data_from_single_file(
         self,
         mocker: MockerFixture,
         sample_config: dict,
-        mock_ftp: MagicMock,
         sample_datetime_utc: datetime,
     ):
         # Arrange
@@ -25,7 +21,7 @@ class TestFetchFTPDataGeneric:
 
         mocker.patch.object(
             collector,
-            "fetch_ftp_file_data",
+            "fetch_smb_file_data",
             return_value=[
                 "09-01-26,12:00:00,data",
                 "09-01-26,12:30:00,data",
@@ -47,8 +43,8 @@ class TestFetchFTPDataGeneric:
 
         # Act
         results = list(
-            collector._fetch_ftp_data_generic(
-                from_time, to_time, mock_ftp, file_paths, collector._parse_pressure_line
+            collector._fetch_smb_data_generic(
+                from_time, to_time, file_paths, collector._parse_pressure_line
             )
         )
 
@@ -63,11 +59,10 @@ class TestFetchFTPDataGeneric:
             {"parsed": "data"},
         )
 
-    def test_fetch_ftp_data_generic_yields_datetime_and_parsed_data_from_multiple_files(
+    def test_fetch_smb_data_generic_yields_datetime_and_parsed_data_from_multiple_files(
         self,
         mocker: MockerFixture,
         sample_config: dict,
-        mock_ftp: MagicMock,
         sample_datetime_utc: datetime,
     ):
         # Arrange
@@ -78,7 +73,7 @@ class TestFetchFTPDataGeneric:
 
         mocker.patch.object(
             collector,
-            "fetch_ftp_file_data",
+            "fetch_smb_file_data",
             side_effect=[
                 ["09-01-26,12:00:00,data"],
                 ["09-01-26,12:30:00,data"],
@@ -105,8 +100,8 @@ class TestFetchFTPDataGeneric:
 
         # Act
         results = list(
-            collector._fetch_ftp_data_generic(
-                from_time, to_time, mock_ftp, file_paths, collector._parse_pressure_line
+            collector._fetch_smb_data_generic(
+                from_time, to_time, file_paths, collector._parse_pressure_line
             )
         )
 
@@ -121,11 +116,10 @@ class TestFetchFTPDataGeneric:
             {"parsed": "data2"},
         )
 
-    def test_fetch_ftp_data_generic_filters_by_datetime_range(
+    def test_fetch_smb_data_generic_filters_by_datetime_range(
         self,
         mocker: MockerFixture,
         sample_config: dict,
-        mock_ftp: MagicMock,
         sample_datetime_utc: datetime,
     ):
         # Arrange
@@ -136,7 +130,7 @@ class TestFetchFTPDataGeneric:
 
         mocker.patch.object(
             collector,
-            "fetch_ftp_file_data",
+            "fetch_smb_file_data",
             return_value=[
                 "09-01-26,11:00:00,before",
                 "09-01-26,12:10:00,within",
@@ -164,8 +158,8 @@ class TestFetchFTPDataGeneric:
 
         # Act
         results = list(
-            collector._fetch_ftp_data_generic(
-                from_time, to_time, mock_ftp, file_paths, collector._parse_pressure_line
+            collector._fetch_smb_data_generic(
+                from_time, to_time, file_paths, collector._parse_pressure_line
             )
         )
 
@@ -176,11 +170,10 @@ class TestFetchFTPDataGeneric:
             {"value": "within"},
         )
 
-    def test_fetch_ftp_data_generic_skips_empty_lines(
+    def test_fetch_smb_data_generic_skips_empty_lines(
         self,
         mocker: MockerFixture,
         sample_config: dict,
-        mock_ftp: MagicMock,
         sample_datetime_utc: datetime,
     ):
         # Arrange
@@ -190,7 +183,7 @@ class TestFetchFTPDataGeneric:
 
         mocker.patch.object(
             collector,
-            "fetch_ftp_file_data",
+            "fetch_smb_file_data",
             return_value=[
                 "09-01-26,12:00:00,data",
                 "",
@@ -213,10 +206,9 @@ class TestFetchFTPDataGeneric:
 
         # Act
         results = list(
-            collector._fetch_ftp_data_generic(
+            collector._fetch_smb_data_generic(
                 from_time,
                 to_time,
-                mock_ftp,
                 ["test.log"],
                 collector._parse_pressure_line,
             )
@@ -233,11 +225,10 @@ class TestFetchFTPDataGeneric:
             {"value": "data"},
         )
 
-    def test_fetch_ftp_data_generic_skips_invalid_datetime_lines(
+    def test_fetch_smb_data_generic_skips_invalid_datetime_lines(
         self,
         mocker: MockerFixture,
         sample_config: dict,
-        mock_ftp: MagicMock,
         sample_datetime_utc: datetime,
     ):
         """Skip lines with invalid datetime format."""
@@ -248,7 +239,7 @@ class TestFetchFTPDataGeneric:
 
         mocker.patch.object(
             collector,
-            "fetch_ftp_file_data",
+            "fetch_smb_file_data",
             return_value=[
                 "09-01-26,12:00:00,data1",
                 "invalid-datetime,data2",
@@ -272,10 +263,9 @@ class TestFetchFTPDataGeneric:
 
         # Act
         results = list(
-            collector._fetch_ftp_data_generic(
+            collector._fetch_smb_data_generic(
                 from_time,
                 to_time,
-                mock_ftp,
                 ["test.log"],
                 collector._parse_pressure_line,
             )
@@ -292,11 +282,10 @@ class TestFetchFTPDataGeneric:
             {"value": "data"},
         )
 
-    def test_fetch_ftp_data_generic_skips_file_with_no_data(
+    def test_fetch_smb_data_generic_skips_file_with_no_data(
         self,
         mocker: MockerFixture,
         sample_config: dict,
-        mock_ftp: MagicMock,
         sample_datetime_utc: datetime,
     ):
         # Arrange
@@ -307,7 +296,7 @@ class TestFetchFTPDataGeneric:
 
         mocker.patch.object(
             collector,
-            "fetch_ftp_file_data",
+            "fetch_smb_file_data",
             side_effect=[
                 None,
                 [],
@@ -333,8 +322,8 @@ class TestFetchFTPDataGeneric:
 
         # Act
         results = list(
-            collector._fetch_ftp_data_generic(
-                from_time, to_time, mock_ftp, file_paths, collector._parse_pressure_line
+            collector._fetch_smb_data_generic(
+                from_time, to_time, file_paths, collector._parse_pressure_line
             )
         )
 
@@ -346,10 +335,10 @@ class TestFetchFTPDataGeneric:
         )
 
 
-class TestFetchFTPPressureData:
-    """Test suite for _fetch_ftp_pressure_data method."""
+class TestFetchSMBPressureData:
+    """Test suite for _fetch_smb_pressure_data method."""
 
-    def test_fetch_ftp_pressure_data_successful_retrieval_returns_all_channels(
+    def test_fetch_smb_pressure_data_successful_retrieval_returns_all_channels(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -371,12 +360,12 @@ class TestFetchFTPPressureData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, pressure_channels)]),
         )
 
         # Act
-        result, is_retry = collector._fetch_ftp_pressure_data(from_time, to_time, None)
+        result, is_retry = collector._fetch_smb_pressure_data(from_time, to_time)
 
         # Assert
         for i, expected_value in enumerate(expected_values):
@@ -384,7 +373,7 @@ class TestFetchFTPPressureData:
             assert result[i]["timestamps"] == [from_time.timestamp()]
         assert is_retry is False
 
-    def test_fetch_ftp_pressure_data_no_data_sets_retry_flag(
+    def test_fetch_smb_pressure_data_no_data_sets_retry_flag(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -397,12 +386,12 @@ class TestFetchFTPPressureData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, None)]),
         )
 
         # Act
-        result, is_retry = collector._fetch_ftp_pressure_data(from_time, to_time, None)
+        result, is_retry = collector._fetch_smb_pressure_data(from_time, to_time)
 
         # Assert
         assert len(result) == 6
@@ -411,38 +400,11 @@ class TestFetchFTPPressureData:
             assert result[i]["timestamps"] == []
         assert is_retry is True
 
-    def test_fetch_ftp_pressure_data_invalid_csv_format_sets_retry_flag_false(
-        self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
-    ):
-        # Arrange
-        collector = CustomCollector(sample_config)
-        from_time = sample_datetime_utc
-        to_time = sample_datetime_utc + timedelta(hours=1)
 
-        mocker.patch.object(
-            CustomCollector, "generate_file_path", return_value=["test.log"]
-        )
-        mocker.patch.object(
-            CustomCollector,
-            "_fetch_ftp_data_generic",
-            side_effect=error_perm("550 Invalid CSV format"),  # noqa: S321
-        )
+class TestFetchSMBGasflowData:
+    """Test suite for _fetch_smb_gasflow_data method."""
 
-        # Act
-        result, is_retry = collector._fetch_ftp_pressure_data(from_time, to_time, None)
-
-        # Assert
-        assert len(result) == 6
-        for i in range(6):
-            assert result[i]["values"] == []
-            assert result[i]["timestamps"] == []
-        assert is_retry is False
-
-
-class TestFetchFTPGasflowData:
-    """Test suite for _fetch_ftp_gasflow_data method."""
-
-    def test_fetch_ftp_gasflow_data_successful_retrieval_returns_data(
+    def test_fetch_smb_gasflow_data_successful_retrieval_returns_data(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -456,12 +418,12 @@ class TestFetchFTPGasflowData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, gasflow_data)]),
         )
 
         # Act
-        result, is_retry = collector._fetch_ftp_gasflow_data(from_time, to_time, None)
+        result, is_retry = collector._fetch_smb_gasflow_data(from_time, to_time)
 
         # Assert
         assert len(result) == 1
@@ -469,7 +431,7 @@ class TestFetchFTPGasflowData:
         assert result[0]["timestamps"] == [from_time.timestamp()]
         assert is_retry is False
 
-    def test_fetch_ftp_gasflow_data_no_data_sets_retry_flag(
+    def test_fetch_smb_gasflow_data_no_data_sets_retry_flag(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -482,12 +444,12 @@ class TestFetchFTPGasflowData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, None)]),
         )
 
         # Act
-        result, is_retry = collector._fetch_ftp_gasflow_data(from_time, to_time, None)
+        result, is_retry = collector._fetch_smb_gasflow_data(from_time, to_time)
 
         # Assert
         assert len(result) == 1
@@ -495,37 +457,11 @@ class TestFetchFTPGasflowData:
         assert result[0]["timestamps"] == []
         assert is_retry is True
 
-    def test_fetch_ftp_gasflow_data_invalid_csv_format_sets_retry_flag_false(
-        self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
-    ):
-        # Arrange
-        collector = CustomCollector(sample_config)
-        from_time = sample_datetime_utc
-        to_time = sample_datetime_utc + timedelta(hours=1)
 
-        mocker.patch.object(
-            CustomCollector, "generate_file_path", return_value=["test.log"]
-        )
-        mocker.patch.object(
-            CustomCollector,
-            "_fetch_ftp_data_generic",
-            side_effect=error_perm("550 Invalid CSV format"),  # noqa: S321
-        )
+class TestFetchSMBStatusData:
+    """Test suite for _fetch_smb_status_data method."""
 
-        # Act
-        result, is_retry = collector._fetch_ftp_gasflow_data(from_time, to_time, None)
-
-        # Assert
-        assert len(result) == 1
-        assert result[0]["values"] == []
-        assert result[0]["timestamps"] == []
-        assert is_retry is False
-
-
-class TestFetchFTPStatusData:
-    """Test suite for _fetch_ftp_status_data method."""
-
-    def test_fetch_ftp_status_data_successful_retrieval_returns_devices(
+    def test_fetch_smb_status_data_successful_retrieval_returns_devices(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -546,11 +482,11 @@ class TestFetchFTPStatusData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, status_data)]),
         )
         # Act
-        result, is_retry = collector._fetch_ftp_status_data(from_time, to_time, None)
+        result, is_retry = collector._fetch_smb_status_data(from_time, to_time)
 
         # Assert
         assert len(result) == 5
@@ -559,7 +495,7 @@ class TestFetchFTPStatusData:
             assert result[i]["timestamps"] == [from_time.timestamp()]
         assert is_retry is False
 
-    def test_fetch_ftp_status_data_no_data_sets_retry_flag(
+    def test_fetch_smb_status_data_no_data_sets_retry_flag(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -572,11 +508,11 @@ class TestFetchFTPStatusData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, None)]),
         )
         # Act
-        result, is_retry = collector._fetch_ftp_status_data(from_time, to_time, None)
+        result, is_retry = collector._fetch_smb_status_data(from_time, to_time)
 
         # Assert
         assert len(result) == 5
@@ -585,37 +521,11 @@ class TestFetchFTPStatusData:
             assert result[i]["timestamps"] == []
         assert is_retry is True
 
-    def test_fetch_ftp_status_data_invalid_csv_format_sets_retry_flag_false(
-        self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
-    ):
-        # Arrange
-        collector = CustomCollector(sample_config)
-        from_time = sample_datetime_utc
-        to_time = sample_datetime_utc + timedelta(hours=1)
 
-        mocker.patch.object(
-            CustomCollector, "generate_file_path", return_value=["test.log"]
-        )
-        mocker.patch.object(
-            CustomCollector,
-            "_fetch_ftp_data_generic",
-            side_effect=error_perm("550 Invalid CSV format"),  # noqa: S321
-        )
-        # Act
-        result, is_retry = collector._fetch_ftp_status_data(from_time, to_time, None)
+class TestFetchSMBCompressorData:
+    """Test suite for _fetch_smb_compressor_data method."""
 
-        # Assert
-        assert len(result) == 5
-        for i in range(5):
-            assert result[i]["values"] == []
-            assert result[i]["timestamps"] == []
-        assert is_retry is False
-
-
-class TestFetchFTPCompressorData:
-    """Test suite for _fetch_ftp_compressor_data method."""
-
-    def test_fetch_ftp_compressor_data_successful_retrieval_returns_all_params(
+    def test_fetch_smb_compressor_data_successful_retrieval_returns_all_params(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -640,14 +550,12 @@ class TestFetchFTPCompressorData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, compressor_data)]),
         )
 
         # Act
-        result, is_retry = collector._fetch_ftp_compressor_data(
-            from_time, to_time, None
-        )
+        result, is_retry = collector._fetch_smb_compressor_data(from_time, to_time)
 
         # Assert
         assert len(result) == 5
@@ -659,7 +567,7 @@ class TestFetchFTPCompressorData:
             assert result[3 + i]["timestamps"] == [from_time.timestamp()]
         assert is_retry is False
 
-    def test_fetch_ftp_compressor_data_no_data_sets_retry_flag(
+    def test_fetch_smb_compressor_data_no_data_sets_retry_flag(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -672,14 +580,12 @@ class TestFetchFTPCompressorData:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_data_generic",
+            "_fetch_smb_data_generic",
             return_value=iter([(from_time, None)]),
         )
 
         # Act
-        result, is_retry = collector._fetch_ftp_compressor_data(
-            from_time, to_time, None
-        )
+        result, is_retry = collector._fetch_smb_compressor_data(from_time, to_time)
 
         # Assert
         assert len(result) == 5
@@ -688,45 +594,15 @@ class TestFetchFTPCompressorData:
             assert result[i]["timestamps"] == []
         assert is_retry is True
 
-    def test_fetch_ftp_compressor_data_invalid_csv_format_sets_retry_flag_false(
-        self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
-    ):
-        # Arrange
-        collector = CustomCollector(sample_config)
-        from_time = sample_datetime_utc
-        to_time = sample_datetime_utc + timedelta(hours=1)
 
-        mocker.patch.object(
-            CustomCollector, "generate_file_path", return_value=["test.log"]
-        )
-        mocker.patch.object(
-            CustomCollector,
-            "_fetch_ftp_data_generic",
-            side_effect=error_perm("550 Invalid CSV format"),  # noqa: S321
-        )
+class TestFetchAllSMBData:
+    """Test suite for _fetch_all_smb_data method."""
 
-        # Act
-        result, is_retry = collector._fetch_ftp_compressor_data(
-            from_time, to_time, None
-        )
-
-        # Assert
-        assert len(result) == 5
-        for i in range(5):
-            assert result[i]["values"] == []
-            assert result[i]["timestamps"] == []
-        assert is_retry is False
-
-
-class TestFetchAllFTPData:
-    """Test suite for _fetch_all_ftp_data method."""
-
-    def test_fetch_all_ftp_data_successful_retrieval_returns_all_data(
+    def test_fetch_all_smb_data_successful_retrieval_returns_all_data(
         self,
         mocker: MockerFixture,
         sample_config: dict,
         sample_datetime_utc: datetime,
-        mock_ftp: MagicMock,
     ):
         # Arrange
         collector = CustomCollector(sample_config)
@@ -734,15 +610,15 @@ class TestFetchAllFTPData:
         to_time = sample_datetime_utc + timedelta(hours=1)
 
         mock_connect = mocker.patch.object(
-            CustomCollector, "_ftp_connect", return_value=(mock_ftp, False)
+            collector, "_smb_connect", return_value=(True, False)
         )
         mock_disconnect = mocker.patch.object(
-            CustomCollector, "ftp_disconnect", return_value=None
+            collector, "smb_disconnect", return_value=None
         )
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_pressure_data",
+            "_fetch_smb_pressure_data",
             return_value=(
                 [{"labels": {}, "values": [100.0], "metric_family": "pressure"}],
                 False,
@@ -751,7 +627,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_gasflow_data",
+            "_fetch_smb_gasflow_data",
             return_value=(
                 [{"labels": {}, "values": [50.0], "metric_family": "helium_flow"}],
                 False,
@@ -760,7 +636,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_status_data",
+            "_fetch_smb_status_data",
             return_value=(
                 [{"labels": {}, "values": [1], "metric_family": "device_status"}],
                 False,
@@ -769,7 +645,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_compressor_data",
+            "_fetch_smb_compressor_data",
             return_value=(
                 [
                     {"labels": {}, "values": [50.0], "metric_family": "compressor"},
@@ -784,7 +660,7 @@ class TestFetchAllFTPData:
         )
 
         # Act
-        result, is_retry = collector._fetch_all_ftp_data(from_time, to_time)
+        result, is_retry = collector._fetch_all_smb_data(from_time, to_time)
 
         # Assert
         assert len(result) == 5
@@ -792,7 +668,7 @@ class TestFetchAllFTPData:
         mock_connect.assert_called_once()
         mock_disconnect.assert_called_once()
 
-    def test_fetch_all_ftp_data_connection_fails_returns_empty(
+    def test_fetch_all_smb_data_connection_fails_returns_empty(
         self, mocker: MockerFixture, sample_config: dict, sample_datetime_utc: datetime
     ):
         # Arrange
@@ -801,23 +677,22 @@ class TestFetchAllFTPData:
         to_time = sample_datetime_utc + timedelta(hours=1)
 
         mock_connect = mocker.patch.object(
-            CustomCollector, "_ftp_connect", return_value=(None, True)
+            collector, "_smb_connect", return_value=(False, True)
         )
 
         # Act
-        result, is_retry = collector._fetch_all_ftp_data(from_time, to_time)
+        result, is_retry = collector._fetch_all_smb_data(from_time, to_time)
 
         # Assert
         assert result == []
         assert is_retry is True
         mock_connect.assert_called_once()
 
-    def test_fetch_all_ftp_data_partial_failure_sets_retry_flag(
+    def test_fetch_all_smb_data_partial_failure_sets_retry_flag(
         self,
         mocker: MockerFixture,
         sample_config: dict,
         sample_datetime_utc: datetime,
-        mock_ftp: MagicMock,
     ):
         # Arrange
         collector = CustomCollector(sample_config)
@@ -825,15 +700,15 @@ class TestFetchAllFTPData:
         to_time = sample_datetime_utc + timedelta(hours=1)
 
         mock_connect = mocker.patch.object(
-            CustomCollector, "_ftp_connect", return_value=(mock_ftp, False)
+            collector, "_smb_connect", return_value=(True, False)
         )
         mock_disconnect = mocker.patch.object(
-            CustomCollector, "ftp_disconnect", return_value=None
+            collector, "smb_disconnect", return_value=None
         )
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_pressure_data",
+            "_fetch_smb_pressure_data",
             return_value=(
                 [{"labels": {}, "values": [], "metric_family": "pressure"}],
                 True,
@@ -842,7 +717,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_gasflow_data",
+            "_fetch_smb_gasflow_data",
             return_value=(
                 [{"labels": {}, "values": [50.0], "metric_family": "helium_flow"}],
                 False,
@@ -851,7 +726,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_status_data",
+            "_fetch_smb_status_data",
             return_value=(
                 [{"labels": {}, "values": [1], "metric_family": "device_status"}],
                 False,
@@ -860,7 +735,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_compressor_data",
+            "_fetch_smb_compressor_data",
             return_value=(
                 [
                     {"labels": {}, "values": [50.0], "metric_family": "compressor"},
@@ -875,7 +750,7 @@ class TestFetchAllFTPData:
         )
 
         # Act
-        result, is_retry = collector._fetch_all_ftp_data(from_time, to_time)
+        result, is_retry = collector._fetch_all_smb_data(from_time, to_time)
 
         # Assert
         assert len(result) == 4
@@ -883,12 +758,11 @@ class TestFetchAllFTPData:
         mock_connect.assert_called_once()
         mock_disconnect.assert_called_once()
 
-    def test_fetch_all_ftp_data_all_sources_fail_sets_retry_flag(
+    def test_fetch_all_smb_data_all_sources_fail_sets_retry_flag(
         self,
         mocker: MockerFixture,
         sample_config: dict,
         sample_datetime_utc: datetime,
-        mock_ftp: MagicMock,
     ):
         # Arrange
         collector = CustomCollector(sample_config)
@@ -896,17 +770,17 @@ class TestFetchAllFTPData:
         to_time = sample_datetime_utc + timedelta(hours=1)
 
         mock_connect = mocker.patch.object(
-            CustomCollector, "_ftp_connect", return_value=(mock_ftp, False)
+            collector, "_smb_connect", return_value=(True, False)
         )
         mock_disconnect = mocker.patch.object(
-            CustomCollector, "ftp_disconnect", return_value=None
+            collector, "smb_disconnect", return_value=None
         )
 
         mock_logger_error = mocker.patch("cryo_metrics_exporter.logger.error")
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_pressure_data",
+            "_fetch_smb_pressure_data",
             return_value=(
                 [{"labels": {}, "values": [], "metric_family": "pressure"}],
                 True,
@@ -915,7 +789,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_gasflow_data",
+            "_fetch_smb_gasflow_data",
             return_value=(
                 [{"labels": {}, "values": [], "metric_family": "helium_flow"}],
                 True,
@@ -924,7 +798,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_status_data",
+            "_fetch_smb_status_data",
             return_value=(
                 [{"labels": {}, "values": [], "metric_family": "device_status"}],
                 True,
@@ -933,7 +807,7 @@ class TestFetchAllFTPData:
 
         mocker.patch.object(
             CustomCollector,
-            "_fetch_ftp_compressor_data",
+            "_fetch_smb_compressor_data",
             return_value=(
                 [
                     {"labels": {}, "values": [], "metric_family": "compressor"},
@@ -948,7 +822,7 @@ class TestFetchAllFTPData:
         )
 
         # Act
-        result, is_retry = collector._fetch_all_ftp_data(from_time, to_time)
+        result, is_retry = collector._fetch_all_smb_data(from_time, to_time)
 
         # Assert
         assert result == []
@@ -956,5 +830,5 @@ class TestFetchAllFTPData:
         mock_connect.assert_called_once()
         mock_disconnect.assert_called_once()
         mock_logger_error.assert_called_once_with(
-            "No data retrieved from any FTP data source."
+            "No data retrieved from any SMB data source."
         )

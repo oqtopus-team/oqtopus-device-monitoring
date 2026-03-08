@@ -2,20 +2,19 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
-from pytest_mock import MockerFixture
-
 from cryo_metrics_exporter import (
     CustomCollector,
     InternalServerError,
     MetricFamilyType,
     ServiceUnavailableError,
 )
+from pytest_mock import MockerFixture
 
 DEFAULT_TIME_RANGES = {
     "from_http": datetime(2026, 1, 9, 11, 59, 0, tzinfo=ZoneInfo("UTC")),
     "to_http": datetime(2026, 1, 9, 12, 3, 0, tzinfo=ZoneInfo("UTC")),
-    "from_ftp": datetime(2026, 1, 9, 11, 59, 0, tzinfo=ZoneInfo("UTC")),
-    "to_ftp": datetime(2026, 1, 9, 12, 3, 0, tzinfo=ZoneInfo("UTC")),
+    "from_smb": datetime(2026, 1, 9, 11, 59, 0, tzinfo=ZoneInfo("UTC")),
+    "to_smb": datetime(2026, 1, 9, 12, 3, 0, tzinfo=ZoneInfo("UTC")),
 }
 EXPECTED_METRICS_NAMES = {
     "refrigerator_temperature",
@@ -141,7 +140,7 @@ TEMPERATURE_DATA_FAILED_RESPONSE = [
         True,
     ),
 ]
-FTP_DATA_SUCCEEDED_RESPONSE = (
+SMB_DATA_SUCCEEDED_RESPONSE = (
     [
         {
             "labels": {
@@ -210,8 +209,8 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
-            return_value=FTP_DATA_SUCCEEDED_RESPONSE,
+            "_fetch_all_smb_data",
+            return_value=SMB_DATA_SUCCEEDED_RESPONSE,
         )
         expected_sample_counts = {
             "refrigerator_temperature": 12,
@@ -230,7 +229,7 @@ class TestCollect:
             assert metric.name in EXPECTED_METRICS_NAMES
             assert len(metric.samples) == expected_sample_counts[metric.name]
         assert collector.empty_count_http == 0
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
     def test_collect_when_http_data_retrieval_fails_increments_empty_count(
         self, mocker: MockerFixture, sample_config: dict
@@ -238,7 +237,7 @@ class TestCollect:
         # Arrange
         collector = CustomCollector(sample_config)
         mocker.patch.object(
-            collector, "empty_count_ftp", collector._max_expand_windows_ftp - 1
+            collector, "empty_count_smb", collector._max_expand_windows_smb - 1
         )
 
         mock_logger_error = mocker.patch("cryo_metrics_exporter.logger.error")
@@ -254,8 +253,8 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
-            return_value=FTP_DATA_SUCCEEDED_RESPONSE,
+            "_fetch_all_smb_data",
+            return_value=SMB_DATA_SUCCEEDED_RESPONSE,
         )
         expected_sample_counts = {
             "refrigerator_temperature": 0,
@@ -277,7 +276,7 @@ class TestCollect:
             "No data retrieved from any HTTP data source."
         )
         assert collector.empty_count_http == 1
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
     def test_collect_when_http_data_retrieval_fails_remains_empty_count(
         self, mocker: MockerFixture, sample_config: dict
@@ -301,8 +300,8 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
-            return_value=FTP_DATA_SUCCEEDED_RESPONSE,
+            "_fetch_all_smb_data",
+            return_value=SMB_DATA_SUCCEEDED_RESPONSE,
         )
         expected_sample_counts = {
             "refrigerator_temperature": 0,
@@ -324,9 +323,9 @@ class TestCollect:
             "No data retrieved from any HTTP data source."
         )
         assert collector.empty_count_http == (collector._max_expand_windows_http - 1)
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
-    def test_collect_when_ftp_data_retrieval_fails_increments_empty_count(
+    def test_collect_when_smb_data_retrieval_fails_increments_empty_count(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
@@ -347,7 +346,7 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
+            "_fetch_all_smb_data",
             return_value=([], True),
         )
         expected_sample_counts = {
@@ -367,15 +366,15 @@ class TestCollect:
             assert metric.name in EXPECTED_METRICS_NAMES
             assert len(metric.samples) == expected_sample_counts[metric.name]
         assert collector.empty_count_http == 0
-        assert collector.empty_count_ftp == 1
+        assert collector.empty_count_smb == 1
 
-    def test_collect_when_ftp_data_retrieval_fails_remains_empty_count(
+    def test_collect_when_smb_data_retrieval_fails_remains_empty_count(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         mocker.patch.object(
-            collector, "empty_count_ftp", collector._max_expand_windows_ftp - 1
+            collector, "empty_count_smb", collector._max_expand_windows_smb - 1
         )
 
         mocker.patch.object(
@@ -390,7 +389,7 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
+            "_fetch_all_smb_data",
             return_value=([], True),
         )
         expected_sample_counts = {
@@ -410,7 +409,7 @@ class TestCollect:
             assert metric.name in EXPECTED_METRICS_NAMES
             assert len(metric.samples) == expected_sample_counts[metric.name]
         assert collector.empty_count_http == 0
-        assert collector.empty_count_ftp == (collector._max_expand_windows_ftp - 1)
+        assert collector.empty_count_smb == (collector._max_expand_windows_smb - 1)
 
     def test_collect_internal_server_error_occured_in_http_raises_internal_server_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -431,7 +430,7 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
+            "_fetch_all_smb_data",
             return_value=([], True),
         )
 
@@ -442,9 +441,9 @@ class TestCollect:
             "Internal Server Error occurred during HTTP data retrieval."
         )
         assert collector.empty_count_http == 0
-        assert collector.empty_count_ftp == 1
+        assert collector.empty_count_smb == 1
 
-    def test_collect_internal_server_error_occured_in_ftp_raises_internal_server_error(
+    def test_collect_internal_server_error_occured_in_smb_raises_internal_server_error(
         self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
@@ -463,7 +462,7 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
+            "_fetch_all_smb_data",
             side_effect=InternalServerError(),
         )
 
@@ -471,10 +470,10 @@ class TestCollect:
         with pytest.raises(InternalServerError):
             list(collector.collect())
         mock_logger_exception.assert_called_once_with(
-            "Internal Server Error occurred during FTP data retrieval."
+            "Internal Server Error occurred during SMB data retrieval."
         )
         assert collector.empty_count_http == 1
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
     def test_collect_all_data_sources_failed_raises_internal_server_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -495,7 +494,7 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
+            "_fetch_all_smb_data",
             side_effect=InternalServerError(),
         )
 
@@ -506,10 +505,10 @@ class TestCollect:
             "Internal Server Error occurred during HTTP data retrieval."
         )
         mock_logger_exception.assert_any_call(
-            "Internal Server Error occurred during FTP data retrieval."
+            "Internal Server Error occurred during SMB data retrieval."
         )
         assert collector.empty_count_http == 0
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
     def test_collect_all_data_sources_failed_raises_service_unavailable_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -530,7 +529,7 @@ class TestCollect:
         )
         mocker.patch.object(
             CustomCollector,
-            "_fetch_all_ftp_data",
+            "_fetch_all_smb_data",
             return_value=([], True),
         )
 
@@ -539,4 +538,4 @@ class TestCollect:
             list(collector.collect())
         mock_logger_error.assert_any_call("All data sources failed to provide data.")
         assert collector.empty_count_http == 1
-        assert collector.empty_count_ftp == 1
+        assert collector.empty_count_smb == 1

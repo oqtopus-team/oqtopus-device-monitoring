@@ -1,9 +1,8 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from pytest_mock import MockerFixture
-
 from cryo_metrics_exporter import CustomCollector
+from pytest_mock import MockerFixture
 
 
 class TestParseTime:
@@ -17,8 +16,8 @@ class TestParseTime:
         columns = ["09-01-26", "12:00:00", "data"]
         line_number = 1
         file_path = "test_file.log"
-        collector._tz_ftp = ZoneInfo(
-            sample_config["sources"]["ftp"]["datasource_timezone"]
+        collector._tz_smb = ZoneInfo(
+            sample_config["sources"]["smb"]["datasource_timezone"]
         )
 
         # Act
@@ -32,7 +31,7 @@ class TestParseTime:
             12,
             0,
             0,
-            tzinfo=collector._tz_ftp,
+            tzinfo=collector._tz_smb,
         )
 
     def test_parse_time_insufficient_columns_returns_none(

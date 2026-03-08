@@ -3,10 +3,9 @@ import logging
 from zoneinfo import ZoneInfo
 
 import pytest
+from cryo_metrics_exporter import create_timezone_formatter, setup_config, setup_logging
 from omegaconf import OmegaConf
 from pytest_mock import MockerFixture
-
-from cryo_metrics_exporter import create_timezone_formatter, setup_config, setup_logging
 
 
 def get_base_config() -> dict:
@@ -20,7 +19,7 @@ def get_base_config() -> dict:
             "scrape_interval_sec": 60,
             "max_expand_windows": {
                 "http": 5,
-                "ftp": 5,
+                "smb": 5,
             },
         },
         "sources": {
@@ -30,11 +29,12 @@ def get_base_config() -> dict:
                 "timeout_sec": 5,
                 "datasource_timezone": "UTC",
             },
-            "ftp": {
-                "host": "localhost",
-                "user": "default-user",
-                "port": 21,
-                "base_path": "~/",
+            "smb": {
+                "server": "localhost",
+                "share": "share_name",
+                "port": 445,
+                "username": "default-user",
+                "base_path": "",
                 "timeout_sec": 5,
                 "datasource_timezone": "UTC",
             },
@@ -86,17 +86,18 @@ class TestSetupConfig:
             "EXPORTER_DEVICE_NAME": "env-device",
             "RETRIEVAL_SCRAPE_INTERVAL_SEC": "120",
             "RETRIEVAL_MAX_EXPAND_WINDOWS_HTTP": "10",
-            "RETRIEVAL_MAX_EXPAND_WINDOWS_FTP": "10",
+            "RETRIEVAL_MAX_EXPAND_WINDOWS_SMB": "10",
             "SOURCES_HTTP_DATASOURCE_TIMEZONE": "Asia/Tokyo",
             "SOURCES_HTTP_URL": "http://env-host",
             "SOURCES_HTTP_PORT": "8080",
             "SOURCES_HTTP_TIMEOUT_SEC": "10",
-            "SOURCES_FTP_DATASOURCE_TIMEZONE": "Asia/Tokyo",
-            "SOURCES_FTP_HOST": "env-host",
-            "SOURCES_FTP_PORT": "2121",
-            "SOURCES_FTP_USER": "env-user",
-            "SOURCES_FTP_BASE_PATH": "/env/path",
-            "SOURCES_FTP_TIMEOUT_SEC": "10",
+            "SOURCES_SMB_DATASOURCE_TIMEZONE": "Asia/Tokyo",
+            "SOURCES_SMB_SERVER": "env-host",
+            "SOURCES_SMB_SHARE": "env-share",
+            "SOURCES_SMB_PORT": "445",
+            "SOURCES_SMB_USERNAME": "env-user",
+            "SOURCES_SMB_BASE_PATH": "/env/path",
+            "SOURCES_SMB_TIMEOUT_SEC": "10",
         }
         config_overrides = {
             "exporter": {
@@ -108,7 +109,7 @@ class TestSetupConfig:
                 "scrape_interval_sec": 120,
                 "max_expand_windows": {
                     "http": 10,
-                    "ftp": 10,
+                    "smb": 10,
                 },
             },
             "sources": {
@@ -118,10 +119,11 @@ class TestSetupConfig:
                     "timeout_sec": 10,
                     "datasource_timezone": "Asia/Tokyo",
                 },
-                "ftp": {
-                    "host": "env-host",
-                    "user": "env-user",
-                    "port": 2121,
+                "smb": {
+                    "server": "env-host",
+                    "share": "env-share",
+                    "username": "env-user",
+                    "port": 445,
                     "base_path": "/env/path",
                     "timeout_sec": 10,
                     "datasource_timezone": "Asia/Tokyo",
@@ -146,7 +148,11 @@ class TestSetupConfig:
             "exporter": {"device_name": "default-device"},
             "sources": {
                 "http": {"url": "http://localhost"},
-                "ftp": {"host": "localhost", "user": "default-user"},
+                "smb": {
+                    "server": "localhost",
+                    "share": "share_name",
+                    "username": "default-user",
+                },
             },
         }
         mock_load = mocker.patch("cryo_metrics_exporter.OmegaConf.load")
@@ -168,7 +174,7 @@ class TestSetupConfig:
             "exporter": {"device_name": None},
             "sources": {
                 "http": {"url": None},
-                "ftp": {"host": None, "user": None},
+                "smb": {"server": None, "share": None, "username": None},
             },
         })
         mock_load = mocker.patch("cryo_metrics_exporter.OmegaConf.load")

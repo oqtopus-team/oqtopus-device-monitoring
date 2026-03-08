@@ -13,7 +13,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
+      - NO_PROXY=*
+      - no_proxy=*
       - EXPORTER_PORT=${EXPORTER_PORT:-9101}
       - EXPORTER_TIMEZONE=${EXPORTER_TIMEZONE:-UTC}
-      - FTP_PASSWORD=${FTP_PASSWORD}
+      - SMB_PASSWORD=${SMB_PASSWORD}
     restart: unless-stopped
