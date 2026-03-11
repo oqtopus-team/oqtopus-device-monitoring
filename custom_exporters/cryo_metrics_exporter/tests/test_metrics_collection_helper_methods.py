@@ -2,14 +2,15 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
+from prometheus_client.core import GaugeMetricFamily
+from pytest_mock import MockerFixture
+
 from cryo_metrics_exporter import (
     METRIC_CONFIGS,
     CustomCollector,
     InternalServerError,
     MetricFamilyType,
 )
-from prometheus_client.core import GaugeMetricFamily
-from pytest_mock import MockerFixture
 
 
 class TestComputeTimeRanges:
@@ -402,12 +403,13 @@ class TestUpdateEmptyCounts:
     """Test suite for _update_empty_counts method."""
 
     def test_update_empty_counts_http_retry_flag_increments_empty_count_http(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
         collector.empty_count_smb = 0
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -421,14 +423,17 @@ class TestUpdateEmptyCounts:
         # Assert
         assert collector.empty_count_http == 1
         assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 1)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_update_empty_counts_http_retry_flag_caps_at_max_expand_windows_minus_1(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 4
         collector.empty_count_smb = 0
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -441,14 +446,18 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_http == 4
+        assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 4)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_update_empty_counts_http_data_received_resets_empty_count_http(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 3
         collector.empty_count_smb = 0
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -461,14 +470,18 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_http == 0
+        assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_update_empty_counts_http_internal_server_error_does_not_update(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 2
         collector.empty_count_smb = 0
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -481,14 +494,18 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_http == 2
+        assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 2)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_update_empty_counts_http_no_retry_no_data_does_not_change_count(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 2
         collector.empty_count_smb = 0
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -501,14 +518,18 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_http == 2
+        assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 2)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_update_empty_counts_smb_retry_needed_increments_empty_count_smb(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
         collector.empty_count_smb = 0
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -522,14 +543,17 @@ class TestUpdateEmptyCounts:
         # Assert
         assert collector.empty_count_smb == 1
         assert collector.empty_count_http == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 1)
 
     def test_update_empty_counts_smb_retry_caps_at_max_expand_windows_minus_1(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
         collector.empty_count_smb = 4
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -542,14 +566,18 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_smb == 4
+        assert collector.empty_count_http == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 4)
 
     def test_update_empty_counts_smb_no_retry_resets_empty_count_smb(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
         collector.empty_count_smb = 3
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -562,14 +590,18 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_smb == 0
+        assert collector.empty_count_http == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_update_empty_counts_smb_internal_server_error_does_not_update(
-        self, sample_config: dict
+        self, mocker: MockerFixture, sample_config: dict
     ):
         # Arrange
         collector = CustomCollector(sample_config)
         collector.empty_count_http = 0
         collector.empty_count_smb = 2
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
 
         # Act
         collector._update_empty_counts(
@@ -582,3 +614,6 @@ class TestUpdateEmptyCounts:
 
         # Assert
         assert collector.empty_count_smb == 2
+        assert collector.empty_count_http == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 2)

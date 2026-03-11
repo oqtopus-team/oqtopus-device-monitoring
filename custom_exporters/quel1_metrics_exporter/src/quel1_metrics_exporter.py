@@ -174,12 +174,12 @@ def ping_target(
     except subprocess.CalledProcessError:
         status_code = 1  # Unreachable
         status_text = "unreachable"
-        logger.debug("Ping to %s (%s) failed.", target_name, ip)
+        logger.warning("Ping to %s (%s) failed.", target_name, ip)
     except Exception:
         status_code = 1  # Other errors
         status_text = "error"
         logger.exception("An unexpected error occurred during ping for %s", target_name)
-    logger.debug(
+    logger.info(
         "Ping check completed for target.",
         extra={"target_host": target_name, "target_ip": ip, "status": status_text},
     )
@@ -243,7 +243,7 @@ class CustomCollector(GCCollector):
             GaugeMetricFamily: A metric family with ping status for each target.
 
         """
-        logger.debug("Starting metrics collection for scrape request.")
+        logger.info("Starting metrics collection for scrape request.")
         # Define metric family
         m_ping_status = GaugeMetricFamily(
             PING_METRICS_NAME,

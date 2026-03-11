@@ -2,13 +2,14 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
+from pytest_mock import MockerFixture
+
 from cryo_metrics_exporter import (
     CustomCollector,
     InternalServerError,
     MetricFamilyType,
     ServiceUnavailableError,
 )
-from pytest_mock import MockerFixture
 
 DEFAULT_TIME_RANGES = {
     "from_http": datetime(2026, 1, 9, 11, 59, 0, tzinfo=ZoneInfo("UTC")),
@@ -196,7 +197,10 @@ class TestCollect:
     ):
         # Arrange
         collector = CustomCollector(sample_config)
+        mocker.patch.object(collector, "empty_count_http", 1)
+        mocker.patch.object(collector, "empty_count_smb", 1)
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mocker.patch.object(
             CustomCollector,
             "compute_time_ranges",
@@ -230,6 +234,8 @@ class TestCollect:
             assert len(metric.samples) == expected_sample_counts[metric.name]
         assert collector.empty_count_http == 0
         assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_collect_when_http_data_retrieval_fails_increments_empty_count(
         self, mocker: MockerFixture, sample_config: dict
@@ -240,6 +246,7 @@ class TestCollect:
             collector, "empty_count_smb", collector._max_expand_windows_smb - 1
         )
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mock_logger_error = mocker.patch("cryo_metrics_exporter.logger.error")
         mocker.patch.object(
             CustomCollector,
@@ -277,6 +284,8 @@ class TestCollect:
         )
         assert collector.empty_count_http == 1
         assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 1)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_collect_when_http_data_retrieval_fails_remains_empty_count(
         self, mocker: MockerFixture, sample_config: dict
@@ -287,6 +296,7 @@ class TestCollect:
             collector, "empty_count_http", collector._max_expand_windows_http - 1
         )
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mock_logger_error = mocker.patch("cryo_metrics_exporter.logger.error")
         mocker.patch.object(
             CustomCollector,
@@ -324,6 +334,11 @@ class TestCollect:
         )
         assert collector.empty_count_http == (collector._max_expand_windows_http - 1)
         assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call(
+            "Empty count for HTTP sources is %d.",
+            (collector._max_expand_windows_http - 1),
+        )
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_collect_when_smb_data_retrieval_fails_increments_empty_count(
         self, mocker: MockerFixture, sample_config: dict
@@ -334,6 +349,7 @@ class TestCollect:
             collector, "empty_count_http", collector._max_expand_windows_http - 1
         )
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mocker.patch.object(
             CustomCollector,
             "compute_time_ranges",
@@ -367,6 +383,8 @@ class TestCollect:
             assert len(metric.samples) == expected_sample_counts[metric.name]
         assert collector.empty_count_http == 0
         assert collector.empty_count_smb == 1
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 1)
 
     def test_collect_when_smb_data_retrieval_fails_remains_empty_count(
         self, mocker: MockerFixture, sample_config: dict
@@ -377,6 +395,7 @@ class TestCollect:
             collector, "empty_count_smb", collector._max_expand_windows_smb - 1
         )
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mocker.patch.object(
             CustomCollector,
             "compute_time_ranges",
@@ -410,6 +429,11 @@ class TestCollect:
             assert len(metric.samples) == expected_sample_counts[metric.name]
         assert collector.empty_count_http == 0
         assert collector.empty_count_smb == (collector._max_expand_windows_smb - 1)
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with(
+            "Empty count for SMB sources is %d.",
+            (collector._max_expand_windows_smb - 1),
+        )
 
     def test_collect_internal_server_error_occured_in_http_raises_internal_server_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -417,6 +441,7 @@ class TestCollect:
         # Arrange
         collector = CustomCollector(sample_config)
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mock_logger_exception = mocker.patch("cryo_metrics_exporter.logger.exception")
         mocker.patch.object(
             CustomCollector,
@@ -442,6 +467,8 @@ class TestCollect:
         )
         assert collector.empty_count_http == 0
         assert collector.empty_count_smb == 1
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 1)
 
     def test_collect_internal_server_error_occured_in_smb_raises_internal_server_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -449,6 +476,7 @@ class TestCollect:
         # Arrange
         collector = CustomCollector(sample_config)
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mock_logger_exception = mocker.patch("cryo_metrics_exporter.logger.exception")
         mocker.patch.object(
             CustomCollector,
@@ -474,6 +502,8 @@ class TestCollect:
         )
         assert collector.empty_count_http == 1
         assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 1)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_collect_all_data_sources_failed_raises_internal_server_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -481,6 +511,7 @@ class TestCollect:
         # Arrange
         collector = CustomCollector(sample_config)
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mock_logger_exception = mocker.patch("cryo_metrics_exporter.logger.exception")
         mocker.patch.object(
             CustomCollector,
@@ -509,6 +540,8 @@ class TestCollect:
         )
         assert collector.empty_count_http == 0
         assert collector.empty_count_smb == 0
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 0)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 0)
 
     def test_collect_all_data_sources_failed_raises_service_unavailable_error(
         self, mocker: MockerFixture, sample_config: dict
@@ -516,6 +549,7 @@ class TestCollect:
         # Arrange
         collector = CustomCollector(sample_config)
 
+        mock_logger_info = mocker.patch("cryo_metrics_exporter.logger.info")
         mock_logger_error = mocker.patch("cryo_metrics_exporter.logger.error")
         mocker.patch.object(
             CustomCollector,
@@ -539,3 +573,5 @@ class TestCollect:
         mock_logger_error.assert_any_call("All data sources failed to provide data.")
         assert collector.empty_count_http == 1
         assert collector.empty_count_smb == 1
+        mock_logger_info.assert_any_call("Empty count for HTTP sources is %d.", 1)
+        mock_logger_info.assert_called_with("Empty count for SMB sources is %d.", 1)

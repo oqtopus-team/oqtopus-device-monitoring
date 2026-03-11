@@ -5,7 +5,7 @@ import os
 import pathlib
 import threading
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -153,6 +153,29 @@ def create_timezone_formatter(cls: type, tz: ZoneInfo) -> type:
     """
 
     class TimezoneFormatter(cls):
+        def __init__(
+            self,
+            *args: object,
+            allowed_fields: Iterable[str] | None = None,
+            **kwargs: object,
+        ) -> None:
+            super().__init__(*args, **kwargs)
+            self._allowed = set(allowed_fields or [])
+
+        def add_fields(
+            self,
+            log_record: dict[str, Any],
+            record: logging.LogRecord,
+            message_dict: dict[str, Any],
+        ) -> None:
+            # add fields as usual
+            super().add_fields(log_record, record, message_dict)
+            # restrict to allowed fields only
+            if self._allowed:
+                for k in list(log_record.keys()):
+                    if k not in self._allowed:
+                        log_record.pop(k, None)
+
         def formatTime(  # noqa: N802, PLR6301
             self, record: logging.LogRecord, datefmt: str | None = None
         ) -> str:
@@ -581,9 +604,11 @@ class CustomCollector(GCCollector):
             - Boolean indicating if the retry is needed.
 
         Raises:
-            InternalServerError: If there is an authentication error during SMB.
+            InternalServerError: If an unexpected error occurs during SMB connection.
 
         """
+        is_retry_needed = False
+        is_registered = False
         try:
             smbclient.register_session(
                 self._smb_server,
@@ -593,6 +618,7 @@ class CustomCollector(GCCollector):
                 connection_timeout=self._smb_timeout,
             )
         except TimeoutError:
+            is_retry_needed = True  # Retry is needed
             logger.exception(
                 "SMB connection timed out to %s:%s as %s (timeout=%s sec)",
                 self._smb_server,
@@ -600,31 +626,46 @@ class CustomCollector(GCCollector):
                 self._smb_user,
                 self._smb_timeout,
             )
-            return (False, True)  # Retry is needed
-        except SMBAuthenticationError as err:
+            return (is_registered, is_retry_needed)
+        except SMBAuthenticationError:
+            is_retry_needed = True  # Retry is needed
             logger.exception(
                 "SMB authentication failed to %s:%s as %s",
                 self._smb_server,
                 self._smb_port,
                 self._smb_user,
             )
-            raise InternalServerError from err
+            return (is_registered, is_retry_needed)
         except (SMBException, OSError):
+            is_retry_needed = True  # Retry is needed
             logger.exception(
                 "SMB connection failed to %s:%s as %s",
                 self._smb_server,
                 self._smb_port,
                 self._smb_user,
             )
-            return (False, True)  # Retry is needed
+            return (is_registered, is_retry_needed)
+        except Exception as err:
+            logger.exception(
+                "SMB connection failed to %s:%s as %s due to unexpected error",
+                self._smb_server,
+                self._smb_port,
+                self._smb_user,
+            )
+            raise InternalServerError from err
         else:
+            is_registered = True
             logger.info(
                 "SMB session registered to %s:%s as %s",
                 self._smb_server,
                 self._smb_port,
                 self._smb_user,
             )
-            return (True, False)  # Connection successful, no retry needed
+            return (is_registered, is_retry_needed)
+        finally:
+            # Ensure cleanup if connection failed
+            if not is_registered:
+                self.smb_disconnect()
 
     def smb_disconnect(self) -> None:
         """Close the SMB session gracefully."""
@@ -644,7 +685,7 @@ class CustomCollector(GCCollector):
             List of lines from the file, or None if retrieval fails.
 
         Raises:
-            InternalServerError: If there is a permission error.
+            InternalServerError: If an unexpected error occurs during file access.
 
         """
         smb_path = f"\\\\{self._smb_server}\\{self._smb_share}\\{file_path}"
@@ -654,11 +695,11 @@ class CustomCollector(GCCollector):
         except FileNotFoundError:
             logger.exception("File not found: %s", smb_path)
             return None
-        except PermissionError as err:
+        except PermissionError:
             logger.exception(
                 "A permission error occurred when accessing file: %s", smb_path
             )
-            raise InternalServerError from err
+            return None
         except TimeoutError:
             logger.exception(
                 "SMB connection timed out when accessing file: %s", smb_path
@@ -667,6 +708,11 @@ class CustomCollector(GCCollector):
         except (SMBException, OSError):
             logger.exception("SMB connection failed when accessing file: %s", smb_path)
             return None
+        except Exception as err:
+            logger.exception(
+                "Unexpected error occurred when accessing file: %s", smb_path
+            )
+            raise InternalServerError from err
         else:
             logger.info("Fetched %d lines from SMB file: %s", len(all_lines), smb_path)
             return all_lines
@@ -1457,7 +1503,7 @@ class CustomCollector(GCCollector):
                 )
             elif http_data_count > 0:
                 self.empty_count_http = 0
-        logger.debug("Empty count for HTTP sources is %d.", self.empty_count_http)
+        logger.info("Empty count for HTTP sources is %d.", self.empty_count_http)
 
         # Update empty counts based on SMB retrieval results
         if not is_smb_internal_server_error:
@@ -1467,7 +1513,7 @@ class CustomCollector(GCCollector):
                 )
             else:
                 self.empty_count_smb = 0
-        logger.debug("Empty count for SMB sources is %d.", self.empty_count_smb)
+        logger.info("Empty count for SMB sources is %d.", self.empty_count_smb)
 
     def collect(self) -> Generator[GaugeMetricFamily]:
         """Collect metrics by fetching data from HTTP and SMB sources.

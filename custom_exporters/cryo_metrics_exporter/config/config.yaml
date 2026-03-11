@@ -20,9 +20,9 @@ sources:
     timeout_sec: 5
   smb:
     datasource_timezone: "Asia/Tokyo"
-    server: "smb.server.ip.address"
-    share: "SMB test"
+    server: "hostname.of.smb.server"
+    share: "smb.share.name"
     port: 445
-    username: "username"
+    username: "username.for.smb.authentication"
     base_path: ""
     timeout_sec: 5

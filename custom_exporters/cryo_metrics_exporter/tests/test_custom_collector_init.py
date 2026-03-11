@@ -1,8 +1,9 @@
 from zoneinfo import ZoneInfo
 
 import pytest
-from cryo_metrics_exporter import CustomCollector
 from pytest_mock import MockerFixture
+
+from cryo_metrics_exporter import CustomCollector
 
 
 class TestCustomCollectorInit:

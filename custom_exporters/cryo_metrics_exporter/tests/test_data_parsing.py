@@ -1,8 +1,9 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from cryo_metrics_exporter import CustomCollector
 from pytest_mock import MockerFixture
+
+from cryo_metrics_exporter import CustomCollector
 
 
 class TestParseTime:

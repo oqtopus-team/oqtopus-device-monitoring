@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 
-from cryo_metrics_exporter import CustomCollector
 from pytest_mock import MockerFixture
+
+from cryo_metrics_exporter import CustomCollector
 
 
 class TestFetchSMBDataGeneric:

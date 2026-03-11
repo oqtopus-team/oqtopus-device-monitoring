@@ -3,9 +3,10 @@ import logging
 from zoneinfo import ZoneInfo
 
 import pytest
-from cryo_metrics_exporter import create_timezone_formatter, setup_config, setup_logging
 from omegaconf import OmegaConf
 from pytest_mock import MockerFixture
+
+from cryo_metrics_exporter import create_timezone_formatter, setup_config, setup_logging
 
 
 def get_base_config() -> dict:
