@@ -18,13 +18,13 @@ formatters:
 handlers:
   console:
     class: logging.StreamHandler
-    level: DEBUG
+    level: INFO
     formatter: json
     stream: ext://sys.stdout
 
   file:
     class: logging.handlers.TimedRotatingFileHandler
-    level: DEBUG
+    level: INFO
     formatter: json
     filename: /logs/qubit_controller.log
     when: 'midnight'
@@ -34,7 +34,7 @@ handlers:
 
 loggers:
   qubit_controller:
-    level: DEBUG
+    level: INFO
     handlers: [console, file]
     propagate: no
 

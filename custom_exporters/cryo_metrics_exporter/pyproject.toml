@@ -41,7 +41,8 @@ dependencies = [
   "uv>=0.4.20",
   "prometheus-client>=0.21.0, <1.0",
   "PyYAML>=6.0, <7.0",
-  "python-json-logger>=2.0.7, <3.0"
+  "python-json-logger>=2.0.7, <3.0",
+  "smbprotocol>=1.16.0"
 ]
 
 [dependency-groups]

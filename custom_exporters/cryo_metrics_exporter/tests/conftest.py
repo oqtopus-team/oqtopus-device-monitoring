@@ -7,8 +7,8 @@ from pytest_mock import MockerFixture
 
 
 @pytest.fixture(autouse=True)
-def mock_ftp_password_env_vars(mocker: MockerFixture):
-    mocker.patch.dict("os.environ", {"FTP_PASSWORD": "test_password"})
+def mock_smb_password_env_vars(mocker: MockerFixture):
+    mocker.patch.dict("os.environ", {"SMB_PASSWORD": "test_password"})
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def sample_config():
             "scrape_interval_sec": 60,
             "max_expand_windows": {
                 "http": 5,
-                "ftp": 5,
+                "smb": 5,
             },
         },
         "sources": {
@@ -33,29 +33,18 @@ def sample_config():
                 "timeout_sec": 5,
                 "datasource_timezone": "UTC",
             },
-            "ftp": {
-                "host": "localhost",
-                "port": 21,
-                "user": "testuser",
+            "smb": {
+                "server": "localhost",
+                "share": "share_name",
+                "port": 445,
+                "username": "testuser",
                 "timeout_sec": 5,
-                "base_path": "~/",
+                "base_path": "",
                 "datasource_timezone": "UTC",
             },
         },
     })
     return OmegaConf.to_container(cfg, resolve=True)
-
-
-@pytest.fixture
-def mock_ftp(mocker: MockerFixture):
-    ftp = mocker.MagicMock()
-    ftp.connect = mocker.Mock()
-    ftp.login = mocker.Mock()
-    ftp.set_pasv = mocker.Mock()
-    ftp.quit = mocker.Mock()
-    ftp.close = mocker.Mock()
-    ftp.retrlines = mocker.Mock()
-    return ftp
 
 
 @pytest.fixture

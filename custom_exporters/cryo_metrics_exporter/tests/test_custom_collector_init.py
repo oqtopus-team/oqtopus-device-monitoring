@@ -22,37 +22,38 @@ class TestCustomCollectorInit:
         assert collector._config == config
         assert collector._scrape_interval == 60
         assert collector._max_expand_windows_http == 5
-        assert collector._max_expand_windows_ftp == 5
+        assert collector._max_expand_windows_smb == 5
         assert collector._http_url == "http://localhost"
         assert collector._http_port == 80
         assert collector._http_timeout == 5
-        assert collector._ftp_host == "localhost"
-        assert collector._ftp_port == 21
-        assert collector._ftp_user == "testuser"
-        assert collector._ftp_timeout == 5
-        assert collector._ftp_base_path == "~/"
+        assert collector._smb_server == "localhost"
+        assert collector._smb_share == "share_name"
+        assert collector._smb_port == 445
+        assert collector._smb_user == "testuser"
+        assert collector._smb_timeout == 5
+        assert collector._smb_base_path == ""
         assert collector.empty_count_http == 0
-        assert collector.empty_count_ftp == 0
+        assert collector.empty_count_smb == 0
 
-    def test_custom_collector_init_reads_ftp_password_from_environment(
+    def test_custom_collector_init_reads_smb_password_from_environment(
         self, sample_config: dict, mocker: MockerFixture
     ):
         # Arrange
         config = sample_config
-        mocker.patch.dict("os.environ", {"FTP_PASSWORD": "test_password"})
+        mocker.patch.dict("os.environ", {"SMB_PASSWORD": "test_password"})
 
         # Act
         collector = CustomCollector(config)
 
         # Assert
-        assert collector._ftp_password == "test_password"  # noqa: S105
+        assert collector._smb_password == "test_password"  # noqa: S105
 
-    def test_custom_collector_init_fails_when_ftp_password_missing(
+    def test_custom_collector_init_fails_when_smb_password_missing(
         self, sample_config: dict, monkeypatch: pytest.MonkeyPatch
     ):
         # Arrange
         config = sample_config
-        monkeypatch.delenv("FTP_PASSWORD", raising=False)
+        monkeypatch.delenv("SMB_PASSWORD", raising=False)
 
         # Act & Assert
         with pytest.raises(KeyError):
@@ -66,8 +67,8 @@ class TestCustomCollectorInit:
 
         mock_tz_exporter = ZoneInfo("Asia/Tokyo")
         mock_tz_http = ZoneInfo("America/New_York")
-        mock_tz_ftp = ZoneInfo("Europe/London")
-        side_effects = [mock_tz_exporter, mock_tz_http, mock_tz_ftp]
+        mock_tz_smb = ZoneInfo("Europe/London")
+        side_effects = [mock_tz_exporter, mock_tz_http, mock_tz_smb]
         mocker.patch("cryo_metrics_exporter.get_timezone", side_effect=side_effects)
 
         # Act
@@ -76,7 +77,7 @@ class TestCustomCollectorInit:
         # Assert
         assert collector._tz_exporter == mock_tz_exporter
         assert collector._tz_http == mock_tz_http
-        assert collector._tz_ftp == mock_tz_ftp
+        assert collector._tz_smb == mock_tz_smb
 
     def test_custom_collector_sets_temp_channels(self, sample_config: dict):
         # Arrange
@@ -96,7 +97,7 @@ class TestCustomCollectorInit:
                 == expected_device_name
             )
 
-    def test_custom_collector_sets_ftp_pressure_channels(self, sample_config: dict):
+    def test_custom_collector_sets_smb_pressure_channels(self, sample_config: dict):
         # Arrange
         config = sample_config
         expected_device_name = config["exporter"]["device_name"]
@@ -106,14 +107,14 @@ class TestCustomCollectorInit:
         collector = CustomCollector(config)
 
         # Assert
-        assert list(collector.ftp_pressure_channels.keys()) == expected_channels
+        assert list(collector.smb_pressure_channels.keys()) == expected_channels
         for channel_id in collector.temp_channels:
             assert (
                 collector.temp_channels[channel_id]["device_name"]
                 == expected_device_name
             )
 
-    def test_custom_collector_sets_ftp_gasflow_channels(self, sample_config: dict):
+    def test_custom_collector_sets_smb_gasflow_channels(self, sample_config: dict):
         # Arrange
         config = sample_config
         expected_device_name = config["exporter"]["device_name"]
@@ -123,13 +124,13 @@ class TestCustomCollectorInit:
         collector = CustomCollector(config)
 
         # Assert
-        assert list(collector.ftp_gasflow_channels.keys()) == expected_channels
+        assert list(collector.smb_gasflow_channels.keys()) == expected_channels
         assert (
-            collector.ftp_gasflow_channels["channel"]["device_name"]
+            collector.smb_gasflow_channels["channel"]["device_name"]
             == expected_device_name
         )
 
-    def test_custom_collector_sets_ftp_stat_channels(self, sample_config: dict):
+    def test_custom_collector_sets_smb_stat_channels(self, sample_config: dict):
         # Arrange
         config = sample_config
         expected_device_name = config["exporter"]["device_name"]
@@ -139,14 +140,14 @@ class TestCustomCollectorInit:
         collector = CustomCollector(config)
 
         # Assert
-        assert list(collector.ftp_stat_channels.keys()) == expected_channels
-        for channel_id in collector.ftp_stat_channels:
+        assert list(collector.smb_stat_channels.keys()) == expected_channels
+        for channel_id in collector.smb_stat_channels:
             assert (
-                collector.ftp_stat_channels[channel_id]["device_name"]
+                collector.smb_stat_channels[channel_id]["device_name"]
                 == expected_device_name
             )
 
-    def test_custom_collector_sets_ftp_comp_channels(self, sample_config: dict):
+    def test_custom_collector_sets_smb_comp_channels(self, sample_config: dict):
         # Arrange
         config = sample_config
         expected_device_name = config["exporter"]["device_name"]
@@ -156,14 +157,14 @@ class TestCustomCollectorInit:
         collector = CustomCollector(config)
 
         # Assert
-        assert list(collector.ftp_comp_channels.keys()) == expected_channels
-        for channel_id in collector.ftp_comp_channels:
+        assert list(collector.smb_comp_channels.keys()) == expected_channels
+        for channel_id in collector.smb_comp_channels:
             assert (
-                collector.ftp_comp_channels[channel_id]["device_name"]
+                collector.smb_comp_channels[channel_id]["device_name"]
                 == expected_device_name
             )
 
-    def test_custom_collector_sets_ftp_comp_press_channels(self, sample_config: dict):
+    def test_custom_collector_sets_smb_comp_press_channels(self, sample_config: dict):
         # Arrange
         config = sample_config
         expected_device_name = config["exporter"]["device_name"]
@@ -173,9 +174,9 @@ class TestCustomCollectorInit:
         collector = CustomCollector(config)
 
         # Assert
-        assert list(collector.ftp_comp_press_channels.keys()) == expected_channels
-        for channel_id in collector.ftp_comp_press_channels:
+        assert list(collector.smb_comp_press_channels.keys()) == expected_channels
+        for channel_id in collector.smb_comp_press_channels:
             assert (
-                collector.ftp_comp_press_channels[channel_id]["device_name"]
+                collector.smb_comp_press_channels[channel_id]["device_name"]
                 == expected_device_name
             )

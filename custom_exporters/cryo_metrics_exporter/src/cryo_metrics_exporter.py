@@ -5,22 +5,23 @@ import os
 import pathlib
 import threading
 import time
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from enum import StrEnum
-from ftplib import FTP, all_errors, error_perm, error_temp  # noqa: S402
 from http.server import HTTPServer
 from importlib import import_module
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
+import smbclient
 import yaml
 from omegaconf import OmegaConf
 from prometheus_client import CollectorRegistry, GCCollector
 from prometheus_client.core import GaugeMetricFamily
 from prometheus_client.exposition import MetricsHandler
+from smbprotocol.exceptions import SMBAuthenticationError, SMBException
 
 
 class MetricFamilyType(StrEnum):
@@ -34,8 +35,8 @@ class MetricFamilyType(StrEnum):
     COMPRESSOR_PRESSURE = "compressor_pressure"
 
 
-class FTPDataSource(StrEnum):
-    """FTP Data source types for the Cryo Metrics Exporter."""
+class SMBDataSource(StrEnum):
+    """SMB Data source types for the Cryo Metrics Exporter."""
 
     PRESSURE = "pressure"
     GAS_FLOW_RATE = "gas_flow_rate"
@@ -51,14 +52,14 @@ DEFAULT_EXPORTER_PORT = 9101
 DEFAULT_EXPORTER_TIMEZONE = "UTC"
 DEFAULT_SCRAPE_INTERVAL_SEC = 60
 DEFAULT_MAX_EXPAND_WINDOWS_HTTP = 5
-DEFAULT_MAX_EXPAND_WINDOWS_FTP = 5
+DEFAULT_MAX_EXPAND_WINDOWS_SMB = 5
 DEFAULT_HTTP_DATASOURCE_TIMEZONE = "UTC"
 DEFAULT_HTTP_PORT = 80
 DEFAULT_HTTP_TIMEOUT_SEC = 5
-DEFAULT_FTP_DATASOURCE_TIMEZONE = "UTC"
-DEFAULT_FTP_PORT = 21
-DEFAULT_FTP_BASE_PATH = "~/"
-DEFAULT_FTP_TIMEOUT_SEC = 5
+DEFAULT_SMB_DATASOURCE_TIMEZONE = "UTC"
+DEFAULT_SMB_PORT = 445
+DEFAULT_SMB_BASE_PATH = ""
+DEFAULT_SMB_TIMEOUT_SEC = 5
 
 # Unit conversion factors
 MILLIBAR_TO_KILOPASCAL = 0.1
@@ -100,12 +101,12 @@ METRIC_CONFIGS: dict[MetricFamilyType, dict[str, Any]] = {
     },
 }
 
-# FTP file naming templates
+# SMB file naming templates
 FILE_PATH_TEMPLATES = {
-    FTPDataSource.PRESSURE: "log <YY-MM-DD>/maxigauge <YY-MM-DD>.log",
-    FTPDataSource.GAS_FLOW_RATE: "log <YY-MM-DD>/Flowmeter <YY-MM-DD>.log",
-    FTPDataSource.MACHINE_STATE: "log <YY-MM-DD>/Channels <YY-MM-DD>.log",
-    FTPDataSource.COMPRESSOR: "log <YY-MM-DD>/Status_<YY-MM-DD>.log",
+    SMBDataSource.PRESSURE: "<YY-MM-DD>/maxigauge <YY-MM-DD>.log",
+    SMBDataSource.GAS_FLOW_RATE: "<YY-MM-DD>/Flowmeter <YY-MM-DD>.log",
+    SMBDataSource.MACHINE_STATE: "<YY-MM-DD>/Channels <YY-MM-DD>.log",
+    SMBDataSource.COMPRESSOR: "<YY-MM-DD>/Status_<YY-MM-DD>.log",
 }
 
 # Constants for parsing time from data lines
@@ -152,6 +153,29 @@ def create_timezone_formatter(cls: type, tz: ZoneInfo) -> type:
     """
 
     class TimezoneFormatter(cls):
+        def __init__(
+            self,
+            *args: object,
+            allowed_fields: Iterable[str] | None = None,
+            **kwargs: object,
+        ) -> None:
+            super().__init__(*args, **kwargs)
+            self._allowed = set(allowed_fields or [])
+
+        def add_fields(
+            self,
+            log_record: dict[str, Any],
+            record: logging.LogRecord,
+            message_dict: dict[str, Any],
+        ) -> None:
+            # add fields as usual
+            super().add_fields(log_record, record, message_dict)
+            # restrict to allowed fields only
+            if self._allowed:
+                for k in list(log_record.keys()):
+                    if k not in self._allowed:
+                        log_record.pop(k, None)
+
         def formatTime(  # noqa: N802, PLR6301
             self, record: logging.LogRecord, datefmt: str | None = None
         ) -> str:
@@ -264,22 +288,23 @@ class CustomCollector(GCCollector):
         self._max_expand_windows_http = config["retrieval"]["max_expand_windows"][
             "http"
         ]
-        self._max_expand_windows_ftp = config["retrieval"]["max_expand_windows"]["ftp"]
+        self._max_expand_windows_smb = config["retrieval"]["max_expand_windows"]["smb"]
 
         # HTTP settings
         self._http_url = config["sources"]["http"]["url"]
         self._http_port = config["sources"]["http"]["port"]
         self._http_timeout = config["sources"]["http"]["timeout_sec"]
 
-        # FTP settings
-        self._ftp_host = config["sources"]["ftp"]["host"]
-        self._ftp_port = config["sources"]["ftp"]["port"]
-        self._ftp_user = config["sources"]["ftp"]["user"]
-        self._ftp_timeout = config["sources"]["ftp"]["timeout_sec"]
-        self._ftp_base_path = config["sources"]["ftp"]["base_path"]
+        # SMB settings
+        self._smb_server = config["sources"]["smb"]["server"]
+        self._smb_share = config["sources"]["smb"]["share"]
+        self._smb_port = config["sources"]["smb"]["port"]
+        self._smb_user = config["sources"]["smb"]["username"]
+        self._smb_timeout = config["sources"]["smb"]["timeout_sec"]
+        self._smb_base_path = config["sources"]["smb"]["base_path"]
 
-        # FTP password from environment variable
-        self._ftp_password = os.environ["FTP_PASSWORD"]
+        # SMB password from environment variable
+        self._smb_password = os.environ["SMB_PASSWORD"]
 
         # Timezone settings
         self._tz_exporter = get_timezone(
@@ -289,14 +314,14 @@ class CustomCollector(GCCollector):
             config["sources"]["http"]["datasource_timezone"],
             DEFAULT_HTTP_DATASOURCE_TIMEZONE,
         )
-        self._tz_ftp = get_timezone(
-            config["sources"]["ftp"]["datasource_timezone"],
-            DEFAULT_FTP_DATASOURCE_TIMEZONE,
+        self._tz_smb = get_timezone(
+            config["sources"]["smb"]["datasource_timezone"],
+            DEFAULT_SMB_DATASOURCE_TIMEZONE,
         )
 
         # Counters for empty data retrievals
         self.empty_count_http = 0
-        self.empty_count_ftp = 0
+        self.empty_count_smb = 0
 
         # Define channels configuration
         device_name = config["exporter"]["device_name"]
@@ -332,7 +357,7 @@ class CustomCollector(GCCollector):
         }
         self.http_targets = list(self.temp_channels.keys())
 
-        self.ftp_pressure_channels = {
+        self.smb_pressure_channels = {
             "CH1": {
                 "device_name": device_name,
                 "unit": "millibar",
@@ -371,7 +396,7 @@ class CustomCollector(GCCollector):
             },
         }
 
-        self.ftp_gasflow_channels = {
+        self.smb_gasflow_channels = {
             "channel": {
                 "device_name": device_name,
                 "unit": "millimoles per second",
@@ -379,7 +404,7 @@ class CustomCollector(GCCollector):
             },
         }
 
-        self.ftp_stat_channels = {
+        self.smb_stat_channels = {
             "scroll1": {
                 "device_name": device_name,
                 "unit": "None",
@@ -412,7 +437,7 @@ class CustomCollector(GCCollector):
             },
         }
 
-        self.ftp_comp_channels = {
+        self.smb_comp_channels = {
             "tc400actualspd": {
                 "device_name": device_name,
                 "unit": "Hz",
@@ -433,7 +458,7 @@ class CustomCollector(GCCollector):
             },
         }
 
-        self.ftp_comp_press_channels = {
+        self.smb_comp_press_channels = {
             "cpalp": {
                 "device_name": device_name,
                 "unit": "psig",
@@ -570,152 +595,132 @@ class CustomCollector(GCCollector):
             results["timestamps"] = time_list
         return (results, is_retry_needed)
 
-    def _ftp_connect(self) -> tuple[FTP | None, bool]:
-        """Establish an FTP connection with the configured parameters.
+    def _smb_connect(self) -> tuple[bool, bool]:
+        """Register an SMB session with the configured parameters.
 
         Returns:
             Tuple of:
-            - An active FTP connection object, or None if the connection fails.
+            - Boolean indicating if the connection was successful.
             - Boolean indicating if the retry is needed.
 
         Raises:
-            InternalServerError: If there is an error during FTP connection.
+            InternalServerError: If an unexpected error occurs during SMB connection.
 
         """
-        ftp = None
-        has_successful_connection = False
+        is_retry_needed = False
+        is_registered = False
         try:
-            ftp = FTP()  # noqa: S321
-            ftp.connect(self._ftp_host, self._ftp_port, timeout=self._ftp_timeout)
-            ftp.login(self._ftp_user, self._ftp_password)
-            ftp.set_pasv(True)
-            has_successful_connection = True
-        except TimeoutError:
-            logger.exception(
-                "FTP connection timed out to %s:%s as %s (timeout=%s sec)",
-                self._ftp_host,
-                self._ftp_port,
-                self._ftp_user,
-                self._ftp_timeout,
+            smbclient.register_session(
+                self._smb_server,
+                username=self._smb_user,
+                password=self._smb_password,
+                port=self._smb_port,
+                connection_timeout=self._smb_timeout,
             )
-            return (None, True)  # Retry is needed
-        except error_perm as err:  # noqa: S321
-            err_msg = str(err)
-            if "invalid csv format" in err_msg.lower():
-                logger.exception(
-                    "FTP connection failed to %s:%s as %s (invalid CSV format)",
-                    self._ftp_host,
-                    self._ftp_port,
-                    self._ftp_user,
-                )
-                return (None, False)  # Retry is not needed
-            if "550" in err_msg and "file not found" in err_msg.lower():
-                logger.exception(
-                    "FTP connection failed to %s:%s as %s (file not found)",
-                    self._ftp_host,
-                    self._ftp_port,
-                    self._ftp_user,
-                )
-                return (None, True)  # Retry is needed
+        except TimeoutError:
+            is_retry_needed = True  # Retry is needed
             logger.exception(
-                "A permanent error occurred during FTP connection to %s:%s as %s",
-                self._ftp_host,
-                self._ftp_port,
-                self._ftp_user,
+                "SMB connection timed out to %s:%s as %s (timeout=%s sec)",
+                self._smb_server,
+                self._smb_port,
+                self._smb_user,
+                self._smb_timeout,
+            )
+            return (is_registered, is_retry_needed)
+        except SMBAuthenticationError:
+            is_retry_needed = True  # Retry is needed
+            logger.exception(
+                "SMB authentication failed to %s:%s as %s",
+                self._smb_server,
+                self._smb_port,
+                self._smb_user,
+            )
+            return (is_registered, is_retry_needed)
+        except (SMBException, OSError):
+            is_retry_needed = True  # Retry is needed
+            logger.exception(
+                "SMB connection failed to %s:%s as %s",
+                self._smb_server,
+                self._smb_port,
+                self._smb_user,
+            )
+            return (is_registered, is_retry_needed)
+        except Exception as err:
+            logger.exception(
+                "SMB connection failed to %s:%s as %s due to unexpected error",
+                self._smb_server,
+                self._smb_port,
+                self._smb_user,
             )
             raise InternalServerError from err
-        except all_errors:  # noqa: S321
-            logger.exception(
-                "FTP connection failed to %s:%s as %s",
-                self._ftp_host,
-                self._ftp_port,
-                self._ftp_user,
-            )
-            return (None, True)  # Retry is needed
         else:
+            is_registered = True
             logger.info(
-                "FTP connection established to %s:%s as %s",
-                self._ftp_host,
-                self._ftp_port,
-                self._ftp_user,
+                "SMB session registered to %s:%s as %s",
+                self._smb_server,
+                self._smb_port,
+                self._smb_user,
             )
-            return (ftp, False)  # Connection successful, no retry needed
+            return (is_registered, is_retry_needed)
         finally:
-            # Ensure FTP connection is closed if connection was not successful
-            if not has_successful_connection and ftp is not None:
-                self.ftp_disconnect(ftp)
+            # Ensure cleanup if connection failed
+            if not is_registered:
+                self.smb_disconnect()
 
-    @staticmethod
-    def ftp_disconnect(ftp: FTP) -> None:
-        """Close the given FTP connection gracefully.
-
-        Args:
-            ftp (FTP): Active FTP connection to close.
-
-        """
+    def smb_disconnect(self) -> None:
+        """Close the SMB session gracefully."""
         try:
-            ftp.quit()
-            logger.info("FTP connection closed (quit).")
+            smbclient.delete_session(self._smb_server, port=self._smb_port)
+            logger.info("SMB session closed.")
         except Exception:
-            logger.exception("FTP quit() failed. Using close() fallback.")
-            try:
-                ftp.close()
-                logger.info("FTP connection closed (close fallback).")
-            except Exception:
-                logger.exception("FTP close() also failed.")
+            logger.exception("SMB session close failed.")
 
-    @staticmethod
-    def fetch_ftp_file_data(ftp: FTP, file_path: str) -> list[str] | None:
-        """Fetch all lines from a file on the FTP server.
+    def fetch_smb_file_data(self, file_path: str) -> list[str] | None:
+        """Fetch all lines from a file on the SMB share.
 
         Args:
-            ftp (FTP): Active FTP connection.
-            file_path (str): Path to the file on the FTP server.
+            file_path (str): Path to the file on the SMB share.
 
         Returns:
             List of lines from the file, or None if retrieval fails.
 
         Raises:
-            InternalServerError: If there is an error during FTP file retrieval.
-            error_perm: If Invalid CSV format is encountered in the file.
+            InternalServerError: If an unexpected error occurs during file access.
 
         """
+        smb_path = f"\\\\{self._smb_server}\\{self._smb_share}\\{file_path}"
         try:
-            all_lines: list[str] = []
-            ftp.retrlines(f"RETR {file_path}", all_lines.append)
-        except error_perm as err:  # noqa: S321
-            err_msg = str(err)
-            if "invalid csv format" in err_msg.lower():
-                logger.exception("Invalid CSV format in file: %s", file_path)
-                raise
-            if "550" in err_msg and "file not found" in err_msg.lower():
-                logger.exception("File not found: %s", file_path)
-                return None
+            with smbclient.open_file(smb_path, mode="r", encoding="utf-8") as f:
+                all_lines = f.read().splitlines()
+        except FileNotFoundError:
+            logger.exception("File not found: %s", smb_path)
+            return None
+        except PermissionError:
             logger.exception(
-                "A permanent FTP error occurred when accessing file: %s", file_path
-            )
-            raise InternalServerError from err
-        except error_temp:  # noqa: S321
-            logger.exception(
-                "A temporary FTP error occurred when accessing file: %s", file_path
+                "A permission error occurred when accessing file: %s", smb_path
             )
             return None
         except TimeoutError:
             logger.exception(
-                "FTP connection timed out when accessing file: %s", file_path
+                "SMB connection timed out when accessing file: %s", smb_path
             )
             return None
-        except all_errors:  # noqa: S321
-            logger.exception("FTP connection failed when accessing file: %s", file_path)
+        except (SMBException, OSError):
+            logger.exception("SMB connection failed when accessing file: %s", smb_path)
             return None
+        except Exception as err:
+            logger.exception(
+                "Unexpected error occurred when accessing file: %s", smb_path
+            )
+            raise InternalServerError from err
         else:
-            logger.info("Fetched %d lines from FTP file: %s", len(all_lines), file_path)
+            logger.info("Fetched %d lines from SMB file: %s", len(all_lines), smb_path)
             return all_lines
 
     def _parse_time(
         self, columns: list[str], line_number: int, file_path: str
     ) -> datetime | None:
-        """Parse datetime from a FTP file line.
+        """Parse datetime from a SMB file line.
 
         Args:
             columns (list[str]): List of columns from a data line.
@@ -747,7 +752,7 @@ class CustomCollector(GCCollector):
                 hour=int(hour),
                 minute=int(minute),
                 second=int(second),
-                tzinfo=self._tz_ftp,
+                tzinfo=self._tz_smb,
             )
         except (ValueError, AttributeError, IndexError):
             logger.exception(
@@ -762,7 +767,7 @@ class CustomCollector(GCCollector):
     def _parse_pressure_line(
         self, columns: list[str], line_number: int, file_path: str
     ) -> dict[str, float] | None:
-        """Parse pressure values from a FTP file line.
+        """Parse pressure values from a SMB file line.
 
         Args:
             columns (list[str]): List of columns from a data line.
@@ -784,7 +789,7 @@ class CustomCollector(GCCollector):
             return None
 
         # Initialize result dictionary with None values
-        result: dict[str, float | None] = dict.fromkeys(self.ftp_pressure_channels)
+        result: dict[str, float | None] = dict.fromkeys(self.smb_pressure_channels)
 
         # Extract pressure values for each channel from the data line
         for i in range(PRESSURE_START_INDEX, len(columns), PRESSURE_COLUMN_STRIDE):
@@ -827,7 +832,7 @@ class CustomCollector(GCCollector):
     def _parse_gasflow_line(
         columns: list[str], line_number: int, file_path: str
     ) -> float | None:
-        """Parse gas flow rate value from a FTP file line.
+        """Parse gas flow rate value from a SMB file line.
 
         Args:
             columns (list[str]): List of columns from a data line.
@@ -872,7 +877,7 @@ class CustomCollector(GCCollector):
     def _parse_status_line(
         self, columns: list[str], line_number: int, file_path: str
     ) -> dict[str, int] | None:
-        """Parse machine state values from a FTP file line.
+        """Parse machine state values from a SMB file line.
 
         Args:
             columns (list[str]): List of columns from a data line.
@@ -894,7 +899,7 @@ class CustomCollector(GCCollector):
             return None
 
         # Initialize result dictionary with None values
-        result: dict[str, int | None] = dict.fromkeys(self.ftp_stat_channels)
+        result: dict[str, int | None] = dict.fromkeys(self.smb_stat_channels)
 
         # Extract status values for each device from the data line
         for i in range(STATUS_START_INDEX, len(columns), STATUS_COLUMN_STRIDE):
@@ -936,7 +941,7 @@ class CustomCollector(GCCollector):
     def _parse_compressor_line(
         self, columns: list[str], line_number: int, file_path: str
     ) -> tuple[dict[str, float], dict[str, float]] | None:
-        """Parse compressor values from a FTP file line.
+        """Parse compressor values from a SMB file line.
 
         Args:
             columns (list[str]): List of columns from a data line.
@@ -959,9 +964,9 @@ class CustomCollector(GCCollector):
             return None
 
         # Initialize result dictionaries with None values
-        result_comp: dict[str, float | None] = dict.fromkeys(self.ftp_comp_channels)
+        result_comp: dict[str, float | None] = dict.fromkeys(self.smb_comp_channels)
         result_comp_press: dict[str, float | None] = dict.fromkeys(
-            self.ftp_comp_press_channels
+            self.smb_comp_press_channels
         )
 
         # Extract compressor data from the data line
@@ -1002,22 +1007,22 @@ class CustomCollector(GCCollector):
         )
 
     def generate_file_path(
-        self, from_ftp: datetime, to_ftp: datetime, data_type: FTPDataSource
+        self, from_smb: datetime, to_smb: datetime, data_type: SMBDataSource
     ) -> list[str]:
-        """Generate FTP file paths based on time range and FTP data source types.
+        """Generate SMB file paths based on time range and SMB data source types.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
-            data_type (FTPDataSource): Type of FTP data source.
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
+            data_type (SMBDataSource): Type of SMB data source.
 
         Returns:
             List of generated file paths.
 
         """
         # Get date range
-        from_date = from_ftp.date()
-        to_date = to_ftp.date()
+        from_date = from_smb.date()
+        to_date = to_smb.date()
 
         # Generate list of directories for the target date range
         date_dirs = []
@@ -1028,29 +1033,27 @@ class CustomCollector(GCCollector):
             current_date += timedelta(days=1)
 
         # Generate file paths based on the date directories
-        base_path = self._ftp_base_path
-        if base_path in {"~/", ""}:
-            base_path = "/"
+        base_path = self._smb_base_path
+        if base_path and not base_path.endswith("/"):
+            base_path = f"{base_path}/"
         path_template = FILE_PATH_TEMPLATES[data_type]
         return [
             f"{base_path}{path_template.replace('<YY-MM-DD>', date_dir)}"
             for date_dir in date_dirs
         ]
 
-    def _fetch_ftp_data_generic(
+    def _fetch_smb_data_generic(
         self,
-        from_ftp: datetime,
-        to_ftp: datetime,
-        ftp: FTP,
+        from_smb: datetime,
+        to_smb: datetime,
         file_paths: list[str],
         parser: Callable,
     ) -> Generator[tuple[datetime, dict | None]]:
-        """Fetch parsed data from FTP files.
+        """Fetch parsed data from SMB files.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
-            ftp (FTP): Active FTP connection.
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
             file_paths (list[str]): List of file paths to fetch data from.
             parser (Callable): Function to parse a line into data dictionary.
 
@@ -1059,8 +1062,8 @@ class CustomCollector(GCCollector):
 
         """
         for file_path in file_paths:
-            # Fetch all lines of each file on FTP server
-            all_lines = self.fetch_ftp_file_data(ftp, file_path)
+            # Fetch all lines of each file on SMB share
+            all_lines = self.fetch_smb_file_data(file_path)
             if not all_lines:
                 continue
             # Process each line in the file
@@ -1072,23 +1075,22 @@ class CustomCollector(GCCollector):
                 parsed_time = self._parse_time(columns, line_number, file_path)
                 if parsed_time is None:
                     continue
-                if parsed_time < from_ftp or parsed_time >= to_ftp:
-                    if parsed_time >= to_ftp:
+                if parsed_time < from_smb or parsed_time >= to_smb:
+                    if parsed_time >= to_smb:
                         break
                     continue
                 # Parse data from the line
                 parsed_data = parser(columns, line_number, file_path)
                 yield (parsed_time, parsed_data)
 
-    def _fetch_ftp_pressure_data(
-        self, from_ftp: datetime, to_ftp: datetime, ftp: FTP
+    def _fetch_smb_pressure_data(
+        self, from_smb: datetime, to_smb: datetime
     ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch pressure data with given time range.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
-            ftp (FTP): Active FTP connection.
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
 
         Returns:
             Tuple of:
@@ -1104,43 +1106,38 @@ class CustomCollector(GCCollector):
                 "timestamps": [],
                 "metric_family": MetricFamilyType.PRESSURE,
             }
-            for ch_dict in self.ftp_pressure_channels.values()
+            for ch_dict in self.smb_pressure_channels.values()
         ]
 
         # Create channel name to index mapping for efficient access
         ch_index_map = {
             ch_name: idx
-            for idx, ch_name in enumerate(self.ftp_pressure_channels.keys())
+            for idx, ch_name in enumerate(self.smb_pressure_channels.keys())
         }
 
-        # Fetch and parse pressure data from FTP files
-        file_paths = self.generate_file_path(from_ftp, to_ftp, FTPDataSource.PRESSURE)
-        try:
-            for dt, parsed_data in self._fetch_ftp_data_generic(
-                from_ftp, to_ftp, ftp, file_paths, self._parse_pressure_line
-            ):
-                if parsed_data is None:
-                    continue
-                for channel_name, value in parsed_data.items():
-                    idx = ch_index_map[channel_name]
-                    ret_val[idx]["values"].append(value)
-                    ret_val[idx]["timestamps"].append(int(dt.timestamp()))
-        except error_perm:  # noqa: S321
-            is_retry_needed = False  # No retry needed due to invalid CSV format error
-        else:
-            # Determine if retry is needed (any channel has no data)
-            is_retry_needed = any(len(item["values"]) == 0 for item in ret_val)
+        # Fetch and parse pressure data from SMB files
+        file_paths = self.generate_file_path(from_smb, to_smb, SMBDataSource.PRESSURE)
+        for dt, parsed_data in self._fetch_smb_data_generic(
+            from_smb, to_smb, file_paths, self._parse_pressure_line
+        ):
+            if parsed_data is None:
+                continue
+            for channel_name, value in parsed_data.items():
+                idx = ch_index_map[channel_name]
+                ret_val[idx]["values"].append(value)
+                ret_val[idx]["timestamps"].append(int(dt.timestamp()))
+        # Determine if retry is needed (any channel has no data)
+        is_retry_needed = any(len(item["values"]) == 0 for item in ret_val)
         return (ret_val, is_retry_needed)
 
-    def _fetch_ftp_gasflow_data(
-        self, from_ftp: datetime, to_ftp: datetime, ftp: FTP
+    def _fetch_smb_gasflow_data(
+        self, from_smb: datetime, to_smb: datetime
     ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch gas flow rate data with given time range.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
-            ftp (FTP): Active FTP connection.
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
 
         Returns:
             Tuple of:
@@ -1150,39 +1147,34 @@ class CustomCollector(GCCollector):
         """
         # Initialize result structure with all channels
         ret_val: dict[str, Any] = {
-            "labels": copy.deepcopy(self.ftp_gasflow_channels["channel"]),
+            "labels": copy.deepcopy(self.smb_gasflow_channels["channel"]),
             "values": [],
             "timestamps": [],
             "metric_family": MetricFamilyType.HELIUM_FLOW,
         }
 
-        # Fetch and parse gas flow rate data from FTP files
+        # Fetch and parse gas flow rate data from SMB files
         file_paths = self.generate_file_path(
-            from_ftp, to_ftp, FTPDataSource.GAS_FLOW_RATE
+            from_smb, to_smb, SMBDataSource.GAS_FLOW_RATE
         )
-        try:
-            for dt, parsed_data in self._fetch_ftp_data_generic(
-                from_ftp, to_ftp, ftp, file_paths, self._parse_gasflow_line
-            ):
-                if parsed_data is not None:
-                    ret_val["values"].append(parsed_data)
-                    ret_val["timestamps"].append(int(dt.timestamp()))
-        except error_perm:  # noqa: S321
-            is_retry_needed = False  # No retry needed due to invalid CSV format error
-        else:
-            # Determine if retry is needed (no data retrieved)
-            is_retry_needed = len(ret_val["values"]) == 0
+        for dt, parsed_data in self._fetch_smb_data_generic(
+            from_smb, to_smb, file_paths, self._parse_gasflow_line
+        ):
+            if parsed_data is not None:
+                ret_val["values"].append(parsed_data)
+                ret_val["timestamps"].append(int(dt.timestamp()))
+        # Determine if retry is needed (no data retrieved)
+        is_retry_needed = len(ret_val["values"]) == 0
         return ([ret_val], is_retry_needed)
 
-    def _fetch_ftp_status_data(
-        self, from_ftp: datetime, to_ftp: datetime, ftp: FTP
+    def _fetch_smb_status_data(
+        self, from_smb: datetime, to_smb: datetime
     ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch machine state data with given time range.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
-            ftp (FTP): Active FTP connection.
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
 
         Returns:
             Tuple of:
@@ -1198,44 +1190,39 @@ class CustomCollector(GCCollector):
                 "timestamps": [],
                 "metric_family": MetricFamilyType.DEVICE_STATUS,
             }
-            for ch_dict in self.ftp_stat_channels.values()
+            for ch_dict in self.smb_stat_channels.values()
         ]
 
         # Create channel name to index mapping for efficient access
         ch_index_map = {
-            ch_name: idx for idx, ch_name in enumerate(self.ftp_stat_channels.keys())
+            ch_name: idx for idx, ch_name in enumerate(self.smb_stat_channels.keys())
         }
 
-        # Fetch and parse machine state data from FTP files
+        # Fetch and parse machine state data from SMB files
         file_paths = self.generate_file_path(
-            from_ftp, to_ftp, FTPDataSource.MACHINE_STATE
+            from_smb, to_smb, SMBDataSource.MACHINE_STATE
         )
-        try:
-            for dt, parsed_data in self._fetch_ftp_data_generic(
-                from_ftp, to_ftp, ftp, file_paths, self._parse_status_line
-            ):
-                if parsed_data is None:
-                    continue
-                for device_name, value in parsed_data.items():
-                    idx = ch_index_map[device_name]
-                    ret_val[idx]["values"].append(value)
-                    ret_val[idx]["timestamps"].append(int(dt.timestamp()))
-        except error_perm:  # noqa: S321
-            is_retry_needed = False  # No retry needed due to invalid CSV format error
-        else:
-            # Determine if retry is needed (any device has no data)
-            is_retry_needed = any(len(item["values"]) == 0 for item in ret_val)
+        for dt, parsed_data in self._fetch_smb_data_generic(
+            from_smb, to_smb, file_paths, self._parse_status_line
+        ):
+            if parsed_data is None:
+                continue
+            for device_name, value in parsed_data.items():
+                idx = ch_index_map[device_name]
+                ret_val[idx]["values"].append(value)
+                ret_val[idx]["timestamps"].append(int(dt.timestamp()))
+        # Determine if retry is needed (any device has no data)
+        is_retry_needed = any(len(item["values"]) == 0 for item in ret_val)
         return (ret_val, is_retry_needed)
 
-    def _fetch_ftp_compressor_data(
-        self, from_ftp: datetime, to_ftp: datetime, ftp: FTP
+    def _fetch_smb_compressor_data(
+        self, from_smb: datetime, to_smb: datetime
     ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch compressor data with given time range.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
-            ftp (FTP): Active FTP connection.
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
 
         Returns:
             Tuple of:
@@ -1251,7 +1238,7 @@ class CustomCollector(GCCollector):
                 "timestamps": [],
                 "metric_family": MetricFamilyType.COMPRESSOR,
             }
-            for ch_dict in self.ftp_comp_channels.values()
+            for ch_dict in self.smb_comp_channels.values()
         ]
         ret_val_comp_press: list[dict[str, Any]] = [
             {
@@ -1260,60 +1247,52 @@ class CustomCollector(GCCollector):
                 "timestamps": [],
                 "metric_family": MetricFamilyType.COMPRESSOR_PRESSURE,
             }
-            for ch_dict in self.ftp_comp_press_channels.values()
+            for ch_dict in self.smb_comp_press_channels.values()
         ]
 
         # Create channel name to index mapping for efficient access
         ch_index_map = {
-            ch_name: idx for idx, ch_name in enumerate(self.ftp_comp_channels.keys())
+            ch_name: idx for idx, ch_name in enumerate(self.smb_comp_channels.keys())
         }
         ch_index_map_press = {
             ch_name: idx
-            for idx, ch_name in enumerate(self.ftp_comp_press_channels.keys())
+            for idx, ch_name in enumerate(self.smb_comp_press_channels.keys())
         }
 
-        # Fetch and parse compressor data from FTP files
-        file_paths = self.generate_file_path(from_ftp, to_ftp, FTPDataSource.COMPRESSOR)
-        try:
-            for dt, parsed_data in self._fetch_ftp_data_generic(
-                from_ftp, to_ftp, ftp, file_paths, self._parse_compressor_line
-            ):
-                if parsed_data is None:
-                    continue
-                comp_data, comp_press_data = parsed_data
-                for param_name, value in comp_data.items():
-                    idx = ch_index_map[param_name]
-                    ret_val_comp[idx]["values"].append(value)
-                    ret_val_comp[idx]["timestamps"].append(int(dt.timestamp()))
-                for param_name, value in comp_press_data.items():
-                    idx = ch_index_map_press[param_name]
-                    ret_val_comp_press[idx]["values"].append(value)
-                    ret_val_comp_press[idx]["timestamps"].append(int(dt.timestamp()))
-        except error_perm:  # noqa: S321
-            # No retry needed due to invalid CSV format error
-            is_retry_needed_comp = False
-            is_retry_needed_press = False
-        else:
-            # Determine if retry is needed (any channel has no data)
-            is_retry_needed_comp = any(
-                len(item["values"]) == 0 for item in ret_val_comp
-            )
-            is_retry_needed_press = any(
-                len(item["values"]) == 0 for item in ret_val_comp_press
-            )
+        # Fetch and parse compressor data from SMB files
+        file_paths = self.generate_file_path(from_smb, to_smb, SMBDataSource.COMPRESSOR)
+        for dt, parsed_data in self._fetch_smb_data_generic(
+            from_smb, to_smb, file_paths, self._parse_compressor_line
+        ):
+            if parsed_data is None:
+                continue
+            comp_data, comp_press_data = parsed_data
+            for param_name, value in comp_data.items():
+                idx = ch_index_map[param_name]
+                ret_val_comp[idx]["values"].append(value)
+                ret_val_comp[idx]["timestamps"].append(int(dt.timestamp()))
+            for param_name, value in comp_press_data.items():
+                idx = ch_index_map_press[param_name]
+                ret_val_comp_press[idx]["values"].append(value)
+                ret_val_comp_press[idx]["timestamps"].append(int(dt.timestamp()))
+        # Determine if retry is needed (any channel has no data)
+        is_retry_needed_comp = any(len(item["values"]) == 0 for item in ret_val_comp)
+        is_retry_needed_press = any(
+            len(item["values"]) == 0 for item in ret_val_comp_press
+        )
 
         # Combine results
         all_results = ret_val_comp + ret_val_comp_press
         return (all_results, is_retry_needed_comp or is_retry_needed_press)
 
-    def _fetch_all_ftp_data(
-        self, from_ftp: datetime, to_ftp: datetime
+    def _fetch_all_smb_data(
+        self, from_smb: datetime, to_smb: datetime
     ) -> tuple[list[dict[str, Any]], bool]:
-        """Fetch all FTP data sequentially (thread-safe single connection).
+        """Fetch all SMB data sequentially.
 
         Args:
-            from_ftp (datetime): Start time (with timezone).
-            to_ftp (datetime): End time (with timezone).
+            from_smb (datetime): Start time (with timezone).
+            to_smb (datetime): End time (with timezone).
 
         Returns:
             Tuple of:
@@ -1321,54 +1300,54 @@ class CustomCollector(GCCollector):
             - Boolean indicating if a retry is needed.
 
         """
-        # Convert time ranges to FTP data source timezone
-        from_ftp_tz = from_ftp.astimezone(self._tz_ftp)
-        to_ftp_tz = to_ftp.astimezone(self._tz_ftp)
+        # Convert time ranges to SMB data source timezone
+        from_smb_tz = from_smb.astimezone(self._tz_smb)
+        to_smb_tz = to_smb.astimezone(self._tz_smb)
 
         data_sources = [
-            (FTPDataSource.PRESSURE, self._fetch_ftp_pressure_data),
-            (FTPDataSource.GAS_FLOW_RATE, self._fetch_ftp_gasflow_data),
-            (FTPDataSource.MACHINE_STATE, self._fetch_ftp_status_data),
-            (FTPDataSource.COMPRESSOR, self._fetch_ftp_compressor_data),
+            (SMBDataSource.PRESSURE, self._fetch_smb_pressure_data),
+            (SMBDataSource.GAS_FLOW_RATE, self._fetch_smb_gasflow_data),
+            (SMBDataSource.MACHINE_STATE, self._fetch_smb_status_data),
+            (SMBDataSource.COMPRESSOR, self._fetch_smb_compressor_data),
         ]
 
-        all_ftp_results: list[dict[str, Any]] = []
+        all_smb_results: list[dict[str, Any]] = []
         retry_flags = []
 
-        # Establish FTP connection
-        ftp, is_retry_needed = self._ftp_connect()
-        if ftp is None:
-            return (all_ftp_results, is_retry_needed)
+        # Establish SMB connection
+        is_connected, is_retry_needed = self._smb_connect()
+        if not is_connected:
+            return (all_smb_results, is_retry_needed)
 
-        # Fetch data from all FTP data sources sequentially
+        # Fetch data from all SMB data sources sequentially
         try:
             for source_name, fetch_method in data_sources:
-                results, is_retry_needed = fetch_method(from_ftp_tz, to_ftp_tz, ftp)
+                results, is_retry_needed = fetch_method(from_smb_tz, to_smb_tz)
                 retry_flags.append(is_retry_needed)
                 # Append only non-empty results
                 added_count = 0
                 for result in results:
                     if result["values"]:
-                        all_ftp_results.append(result)
+                        all_smb_results.append(result)
                         added_count += len(result["values"])
                 logger.debug(
-                    "Retrieved %s records from FTP data source: %s",
+                    "Retrieved %s records from SMB data source: %s",
                     added_count,
                     source_name,
                 )
         finally:
-            # close FTP connection
-            self.ftp_disconnect(ftp)
+            # close SMB connection
+            self.smb_disconnect()
 
-        # Log summary of FTP data retrieval
-        if all_ftp_results:
+        # Log summary of SMB data retrieval
+        if all_smb_results:
             logger.info(
-                "Successfully retrieved %s records from FTP data sources.",
-                sum(len(r["values"]) for r in all_ftp_results),
+                "Successfully retrieved %s records from SMB data sources.",
+                sum(len(r["values"]) for r in all_smb_results),
             )
         else:
-            logger.error("No data retrieved from any FTP data source.")
-        return (all_ftp_results, any(retry_flags))
+            logger.error("No data retrieved from any SMB data source.")
+        return (all_smb_results, any(retry_flags))
 
     def _process_http_data(
         self,
@@ -1408,21 +1387,21 @@ class CustomCollector(GCCollector):
             logger.error("No data retrieved from any HTTP data source.")
         return (http_retry_flgs, http_data_count)
 
-    def _process_ftp_data(
+    def _process_smb_data(
         self,
-        ftp_results: list[dict[str, Any]],
+        smb_results: list[dict[str, Any]],
         metric_families: dict[MetricFamilyType, GaugeMetricFamily],
     ) -> None:
-        """Process all FTP data results and add metrics to the metric families.
+        """Process all SMB data results and add metrics to the metric families.
 
         Args:
-            ftp_results (list[dict[str, Any]]):
+            smb_results (list[dict[str, Any]]):
                 List of data dictionaries with metric_family field.
             metric_families (dict[MetricFamilyType, GaugeMetricFamily]):
                 Dictionary of metric families to update.
 
         """
-        for data in ftp_results:
+        for data in smb_results:
             # Add metrics
             metric_family_name = data["metric_family"]
             self._add_metrics(data, metric_families[metric_family_name])
@@ -1453,28 +1432,28 @@ class CustomCollector(GCCollector):
             )
 
     def compute_time_ranges(self) -> dict[str, datetime]:
-        """Compute time ranges for HTTP and FTP data retrieval.
+        """Compute time ranges for HTTP and SMB data retrieval.
 
         Returns:
-            Dictionary with 'from_http', 'to_http', 'from_ftp', 'to_ftp' datetimes.
+            Dictionary with 'from_http', 'to_http', 'from_smb', 'to_smb' datetimes.
 
         """
         now = datetime.now(self._tz_exporter).replace(microsecond=0)
 
         # Compute expanded time windows based on empty counts
         w_http = min(self.empty_count_http + 1, self._max_expand_windows_http)
-        w_ftp = min(self.empty_count_ftp + 1, self._max_expand_windows_ftp)
+        w_smb = min(self.empty_count_smb + 1, self._max_expand_windows_smb)
         logger.info(
-            "Time ranges for data retrieval: HTTP window=%d sec, FTP window=%d sec",
+            "Time ranges for data retrieval: HTTP window=%d sec, SMB window=%d sec",
             w_http * self._scrape_interval,
-            w_ftp * self._scrape_interval,
+            w_smb * self._scrape_interval,
         )
 
         return {
             "from_http": now - timedelta(seconds=self._scrape_interval * w_http),
             "to_http": now,
-            "from_ftp": now - timedelta(seconds=self._scrape_interval * w_ftp),
-            "to_ftp": now,
+            "from_smb": now - timedelta(seconds=self._scrape_interval * w_smb),
+            "to_smb": now,
         }
 
     @staticmethod
@@ -1498,20 +1477,20 @@ class CustomCollector(GCCollector):
         self,
         http_retry_flgs: list[bool],
         *,
-        is_ftp_retry_needed: bool,
+        is_smb_retry_needed: bool,
         is_http_internal_server_error: bool,
-        is_ftp_internal_server_error: bool,
+        is_smb_internal_server_error: bool,
         http_data_count: int,
     ) -> None:
-        """Update empty counts for HTTP and FTP data sources based on retrieval results.
+        """Update empty counts for HTTP and SMB data sources based on retrieval results.
 
         Args:
             http_retry_flgs (list[bool]) : List of retry flags for each HTTP channel.
-            is_ftp_retry_needed (bool) : Retry flag for FTP data retrieval.
+            is_smb_retry_needed (bool) : Retry flag for SMB data retrieval.
             is_http_internal_server_error (bool) :
                 Flag indicating if InternalServerError occurred during HTTP retrieval.
-            is_ftp_internal_server_error (bool) :
-                Flag indicating if InternalServerError occurred during FTP retrieval.
+            is_smb_internal_server_error (bool) :
+                Flag indicating if InternalServerError occurred during SMB retrieval.
             http_data_count (int) :
                 Total count of data records retrieved from HTTP sources.
 
@@ -1524,20 +1503,20 @@ class CustomCollector(GCCollector):
                 )
             elif http_data_count > 0:
                 self.empty_count_http = 0
-        logger.debug("Empty count for HTTP sources is %d.", self.empty_count_http)
+        logger.info("Empty count for HTTP sources is %d.", self.empty_count_http)
 
-        # Update empty counts based on FTP retrieval results
-        if not is_ftp_internal_server_error:
-            if is_ftp_retry_needed:
-                self.empty_count_ftp = min(
-                    self.empty_count_ftp + 1, self._max_expand_windows_ftp - 1
+        # Update empty counts based on SMB retrieval results
+        if not is_smb_internal_server_error:
+            if is_smb_retry_needed:
+                self.empty_count_smb = min(
+                    self.empty_count_smb + 1, self._max_expand_windows_smb - 1
                 )
             else:
-                self.empty_count_ftp = 0
-        logger.debug("Empty count for FTP sources is %d.", self.empty_count_ftp)
+                self.empty_count_smb = 0
+        logger.info("Empty count for SMB sources is %d.", self.empty_count_smb)
 
     def collect(self) -> Generator[GaugeMetricFamily]:
-        """Collect metrics by fetching data from HTTP and FTP sources.
+        """Collect metrics by fetching data from HTTP and SMB sources.
 
         Yields:
             Collected metrics for temperature and pressure.
@@ -1549,18 +1528,18 @@ class CustomCollector(GCCollector):
         """
         logger.info("Starting data retrieval for metric collection.")
 
-        # Calculate time ranges for HTTP and FTP data retrieval
+        # Calculate time ranges for HTTP and SMB data retrieval
         time_ranges = self.compute_time_ranges()
 
         # Initialize metric families
         metric_families = self.setup_metric_families()
 
         http_retry_flgs: list[bool] = []
-        ftp_retry_flg = False
+        smb_retry_flg = False
 
         # Execute data retrieval tasks in parallel:
         # - HTTP: multiple channels in parallel
-        # - FTP: single thread (sequential) for thread-safe FTP connection usage
+        # - SMB: single thread (sequential)
         with ThreadPoolExecutor(max_workers=MAX_WORKERS_COUNT) as executor:
             # HTTP tasks
             http_futures = []
@@ -1572,11 +1551,11 @@ class CustomCollector(GCCollector):
                     ch,
                 )
                 http_futures.append(http_future)
-            # FTP tasks
-            ftp_future = executor.submit(
-                self._fetch_all_ftp_data,
-                time_ranges["from_ftp"],
-                time_ranges["to_ftp"],
+            # SMB tasks
+            smb_future = executor.submit(
+                self._fetch_all_smb_data,
+                time_ranges["from_smb"],
+                time_ranges["to_smb"],
             )
 
             # Process HTTP results
@@ -1592,40 +1571,40 @@ class CustomCollector(GCCollector):
                     "Internal Server Error occurred during HTTP data retrieval."
                 )
 
-            # Process FTP results
-            ftp_internal_server_error = False
-            ftp_all_results: list[dict[str, Any]] = []
+            # Process SMB results
+            smb_internal_server_error = False
+            smb_all_results: list[dict[str, Any]] = []
             try:
-                ftp_all_results, ftp_retry_flg = ftp_future.result()
-                self._process_ftp_data(ftp_all_results, metric_families)
+                smb_all_results, smb_retry_flg = smb_future.result()
+                self._process_smb_data(smb_all_results, metric_families)
             except InternalServerError:
-                ftp_retry_flg = False
-                ftp_internal_server_error = True
+                smb_retry_flg = False
+                smb_internal_server_error = True
                 logger.exception(
-                    "Internal Server Error occurred during FTP data retrieval."
+                    "Internal Server Error occurred during SMB data retrieval."
                 )
 
         # Update empty counts based on retrieval results
         self._update_empty_counts(
             http_retry_flgs,
-            is_ftp_retry_needed=ftp_retry_flg,
+            is_smb_retry_needed=smb_retry_flg,
             is_http_internal_server_error=http_internal_server_error,
-            is_ftp_internal_server_error=ftp_internal_server_error,
+            is_smb_internal_server_error=smb_internal_server_error,
             http_data_count=http_data_count,
         )
 
-        # Raise InternalServerError if it occurred in both HTTP and FTP retrieval
-        if http_internal_server_error and ftp_internal_server_error:
+        # Raise InternalServerError if it occurred in both HTTP and SMB retrieval
+        if http_internal_server_error and smb_internal_server_error:
             raise InternalServerError
 
         # Raise InternalServerError if one source has no data and the other has an error
-        if http_data_count == 0 and ftp_internal_server_error:
+        if http_data_count == 0 and smb_internal_server_error:
             raise InternalServerError
-        if not ftp_all_results and http_internal_server_error:
+        if not smb_all_results and http_internal_server_error:
             raise InternalServerError
 
-        # Raise ServiceUnavailableError if both HTTP and FTP data retrieval failed
-        if http_data_count == 0 and not ftp_all_results:
+        # Raise ServiceUnavailableError if both HTTP and SMB data retrieval failed
+        if http_data_count == 0 and not smb_all_results:
             logger.error("All data sources failed to provide data.")
             raise ServiceUnavailableError
 
@@ -1660,10 +1639,10 @@ def setup_config() -> dict[str, Any]:
             int,
             DEFAULT_MAX_EXPAND_WINDOWS_HTTP,
         ),
-        "retrieval.max_expand_windows.ftp": (
-            "RETRIEVAL_MAX_EXPAND_WINDOWS_FTP",
+        "retrieval.max_expand_windows.smb": (
+            "RETRIEVAL_MAX_EXPAND_WINDOWS_SMB",
             int,
-            DEFAULT_MAX_EXPAND_WINDOWS_FTP,
+            DEFAULT_MAX_EXPAND_WINDOWS_SMB,
         ),
         "sources.http.datasource_timezone": (
             "SOURCES_HTTP_DATASOURCE_TIMEZONE",
@@ -1677,19 +1656,24 @@ def setup_config() -> dict[str, Any]:
             int,
             DEFAULT_HTTP_TIMEOUT_SEC,
         ),
-        "sources.ftp.datasource_timezone": (
-            "SOURCES_FTP_DATASOURCE_TIMEZONE",
+        "sources.smb.datasource_timezone": (
+            "SOURCES_SMB_DATASOURCE_TIMEZONE",
             str,
-            DEFAULT_FTP_DATASOURCE_TIMEZONE,
+            DEFAULT_SMB_DATASOURCE_TIMEZONE,
         ),
-        "sources.ftp.host": ("SOURCES_FTP_HOST", str, None),
-        "sources.ftp.port": ("SOURCES_FTP_PORT", int, DEFAULT_FTP_PORT),
-        "sources.ftp.user": ("SOURCES_FTP_USER", str, None),
-        "sources.ftp.base_path": ("SOURCES_FTP_BASE_PATH", str, DEFAULT_FTP_BASE_PATH),
-        "sources.ftp.timeout_sec": (
-            "SOURCES_FTP_TIMEOUT_SEC",
+        "sources.smb.server": ("SOURCES_SMB_SERVER", str, None),
+        "sources.smb.share": ("SOURCES_SMB_SHARE", str, None),
+        "sources.smb.port": ("SOURCES_SMB_PORT", int, DEFAULT_SMB_PORT),
+        "sources.smb.username": ("SOURCES_SMB_USERNAME", str, None),
+        "sources.smb.base_path": (
+            "SOURCES_SMB_BASE_PATH",
+            str,
+            DEFAULT_SMB_BASE_PATH,
+        ),
+        "sources.smb.timeout_sec": (
+            "SOURCES_SMB_TIMEOUT_SEC",
             int,
-            DEFAULT_FTP_TIMEOUT_SEC,
+            DEFAULT_SMB_TIMEOUT_SEC,
         ),
     }
 

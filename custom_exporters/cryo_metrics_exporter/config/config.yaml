@@ -9,7 +9,7 @@ retrieval:
   scrape_interval_sec: 60
   max_expand_windows:
     http: 5
-    ftp: 5
+    smb: 5
 
 # Data source definitions
 sources:
@@ -18,10 +18,11 @@ sources:
     url: "http://url.of.cryo.metrics"
     port: 1080
     timeout_sec: 5
-  ftp:
+  smb:
     datasource_timezone: "Asia/Tokyo"
-    host: "ip.of.ftp.server"
-    port: 2121
-    user: "ftpuser"
-    base_path: "~/"
+    server: "hostname.of.smb.server"
+    share: "smb.share.name"
+    port: 445
+    username: "username.for.smb.authentication"
+    base_path: ""
     timeout_sec: 5

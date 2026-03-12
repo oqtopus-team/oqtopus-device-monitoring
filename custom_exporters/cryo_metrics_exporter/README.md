@@ -1,10 +1,10 @@
 # Cryo Metrics Exporter
 
-A Prometheus exporter that fetches metrics from HTTP and FTP data sources for cryogenic refrigerators.
+A Prometheus exporter that fetches metrics from HTTP and SMB data sources for cryogenic refrigerators.
 
 ## Features
 
-- HTTP and FTP data retrievals are executed in parallel for efficient data collection.
+- HTTP and SMB data retrievals are executed in parallel for efficient data collection.
 - When no data is returned, the exporter retries on the next pull with an expanded time window (configurable limit).
 - Timezone-aware logging with configurable settings.
 - Dockerized deployment with compose.
@@ -24,31 +24,31 @@ The exporter exposes the following metrics. These metrics are emitted by `Custom
 - `refrigerator_pressure`: Pressure
   - Labels: `device_name`, `unit: millibar`, `location`
   - Additional unit-converted variant: `unit: kilopascal` or `unit: pascal` depending on `location`.
-  - Source: FTP server
+  - Source: SMB share
 
 ### Helium Flow Metrics
 
 - `refrigerator_helium_flow`: Helium flow rate
   - Labels: `device_name`, `unit: millimoles per second`, `raw`
   - Additional unit-converted variant: `unit: micromoles per second`
-  - Source: FTP server
+  - Source: SMB share
 
 ### Device Status Metrics
 
 - `refrigerator_device_status`: Device status (0 or 1)
   - Labels: `device_name`, `unit: None`, `component`, `raw`
-  - Source: FTP server
+  - Source: SMB share
 
 ### Compressor Metrics
 
 - `refrigerator_compressor`: Compressor actual speed
   - Labels: `device_name`, `unit: Hz`, `rotation`, `raw`
-  - Source: FTP server
+  - Source: SMB share
 
 - `refrigerator_compressor_pressure`: Compressor pressure
   - Labels: `device_name`, `unit: psig`, `side`, `raw`
   - Additional unit-converted variant: `unit: megapascal`
-  - Source: FTP server
+  - Source: SMB share
 
 ## Configuration
 
@@ -66,7 +66,7 @@ Supported sections and keys:
 
 - `retrieval.scrape_interval_sec`: Prometheus scrape interval in seconds (default 60).
 - `retrieval.max_expand_windows.http`: Max window expansion for HTTP retries (default 5).
-- `retrieval.max_expand_windows.ftp`: Max window expansion for FTP retries (default 5).
+- `retrieval.max_expand_windows.smb`: Max window expansion for SMB retries (default 5).
 
 ### HTTP Data Source
 
@@ -75,14 +75,15 @@ Supported sections and keys:
 - `sources.http.port`: HTTP API port (default 80).
 - `sources.http.timeout_sec`: Request timeout in seconds (default 5).
 
-### FTP Data Source
+### SMB Data Source
 
-- `sources.ftp.datasource_timezone`: Timezone of FTP source timestamps (default "UTC").
-- `sources.ftp.host`: FTP server hostname (required).
-- `sources.ftp.port`: FTP server port (default 21).
-- `sources.ftp.user`: FTP username (required).
-- `sources.ftp.base_path`: FTP base directory (default "~/").
-- `sources.ftp.timeout_sec`: Connection timeout in seconds (default 5).
+- `sources.smb.datasource_timezone`: Timezone of SMB source timestamps (default "UTC").
+- `sources.smb.server`: SMB server hostname (required).
+- `sources.smb.share`: SMB share name (required).
+- `sources.smb.port`: SMB server port (default 445).
+- `sources.smb.username`: SMB username (required).
+- `sources.smb.base_path`: SMB base directory (default "").
+- `sources.smb.timeout_sec`: Connection timeout in seconds (default 5).
 
 You can override via environment variables:
 
@@ -91,23 +92,24 @@ You can override via environment variables:
 - `EXPORTER_DEVICE_NAME`
 - `RETRIEVAL_SCRAPE_INTERVAL_SEC`
 - `RETRIEVAL_MAX_EXPAND_WINDOWS_HTTP`
-- `RETRIEVAL_MAX_EXPAND_WINDOWS_FTP`
+- `RETRIEVAL_MAX_EXPAND_WINDOWS_SMB`
 - `SOURCES_HTTP_DATASOURCE_TIMEZONE`
 - `SOURCES_HTTP_URL`
 - `SOURCES_HTTP_PORT`
 - `SOURCES_HTTP_TIMEOUT_SEC`
-- `SOURCES_FTP_DATASOURCE_TIMEZONE`
-- `SOURCES_FTP_HOST`
-- `SOURCES_FTP_PORT`
-- `SOURCES_FTP_USER`
-- `SOURCES_FTP_BASE_PATH`
-- `SOURCES_FTP_TIMEOUT_SEC`
-- `FTP_PASSWORD`: FTP password (injected via environment variable only).
+- `SOURCES_SMB_DATASOURCE_TIMEZONE`
+- `SOURCES_SMB_SERVER`
+- `SOURCES_SMB_SHARE`
+- `SOURCES_SMB_PORT`
+- `SOURCES_SMB_USERNAME`
+- `SOURCES_SMB_BASE_PATH`
+- `SOURCES_SMB_TIMEOUT_SEC`
+- `SMB_PASSWORD`: SMB password (injected via environment variable only).
 
 Configuration loading logic: `setup_config` function in [`src/cryo_metrics_exporter.py`](src/cryo_metrics_exporter.py).
 
 **_Note_**:
-`FTP_PASSWORD` is required for this containerized exporter to connect to the FTP server. Set it in your environment or compose file.
+`SMB_PASSWORD` is required for this containerized exporter to connect to the SMB server. Set it in your environment or compose file.
 
 ## Logging
 
@@ -222,8 +224,8 @@ Unit tests cover:
 - Configuration loading with environment overrides.
 - Logging setup with and without YAML file.
 - Data retrieval from the HTTP API.
-- Data retrieval and parsing CSV/Text files from FTP server.
-- Metric collection in Prometheus format from HTTP/FTP servers.
+- Data retrieval and parsing CSV/Text files from SMB share.
+- Metric collection in Prometheus format from HTTP/SMB sources.
 - Retry logic and time window expansion.
 
 Run:
