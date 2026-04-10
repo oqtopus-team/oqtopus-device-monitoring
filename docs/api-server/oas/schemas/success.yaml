@@ -1,0 +1,24 @@
+# API Responses
+success.SuccessResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [success]
+
+success.AcceptedResponse:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [success]
+    data:
+      type: object
+      properties:
+        operation_id:
+          type: string
+          description: "A unique identifier for the asynchronous background operation."
+          example: "20251126T123456_1"
+        summary:
+          type: object
+          description: "A summary of the scheduled operation."

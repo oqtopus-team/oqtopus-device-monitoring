@@ -1,0 +1,850 @@
+openapi: 3.0.1
+info:
+  title: VictoriaMetrics Cluster Data API
+  version: '1.0'
+  contact:
+    name: oqtopus-team
+    email: oqtopus-team[at]googlegroups.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: http://localhost:8080
+    description: Local server url
+paths:
+  /metrics/names:
+    get:
+      summary: Get all metric names
+      description: Retrieves a paginated list of all available metric names.
+      operationId: get_metrics_names
+      security:
+        - {}
+      tags:
+        - metrics
+      parameters:
+        - name: offset
+          in: query
+          description: Offset for pagination
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Limit for pagination
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: A list of metric names
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/metrics.MetricsList'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /metrics/{metric_name}/labels:
+    get:
+      summary: Get all label keys for a metric
+      description: Retrieves all label keys associated with a given metric.
+      operationId: get_label_keys
+      security:
+        - {}
+      tags:
+        - metrics
+      parameters:
+        - name: metric_name
+          in: path
+          description: The name of the metric
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of label keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/metrics.LabelKeysList'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.NotFoundError'
+              example:
+                message: Metric not found
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /metrics/{metric_name}/labels/{label_key}/values:
+    get:
+      summary: Get all label values for a metric and label key
+      description: Retrieves all unique values for a specific label key associated with a given metric.
+      operationId: get_label_values
+      security:
+        - {}
+      tags:
+        - metrics
+      parameters:
+        - name: metric_name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: label_key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: offset
+          in: query
+          description: Offset for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          description: Limit for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 100
+      responses:
+        '200':
+          description: A list of label values
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/metrics.LabelValuesList'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.NotFoundError'
+              example:
+                message: Metric or label key not found
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /metrics/{metric_name}/series/data:
+    get:
+      summary: Get time-series data
+      description: Retrieves time-series data for a specific metric and label set within a time range.
+      operationId: get_timeseries_data
+      security:
+        - {}
+      tags:
+        - metrics
+      parameters:
+        - name: metric_name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: start
+          in: query
+          description: Start timestamp (ISO8601)
+          required: true
+          schema:
+            type: string
+        - name: end
+          in: query
+          description: End timestamp (ISO8601)
+          required: true
+          schema:
+            type: string
+        - name: selector
+          in: query
+          description: |
+            Label selector. Each property name under `selector` is treated
+            as a label key (AND condition).
+            Example:
+              ?selector[instance]=hostA:9100&selector[job]=node
+          required: false
+          style: deepObject
+          explode: true
+          schema:
+            $ref: '#/components/schemas/meta.SelectorQuery'
+          examples:
+            simple:
+              summary: Filter by single label
+              value:
+                instance: hostA:9100
+            multiple:
+              summary: Multiple AND match conditions
+              value:
+                instance: hostA:9100
+                job: node
+      responses:
+        '200':
+          description: Time-series data response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/metrics.TimeSeriesData'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.NotFoundError'
+              example:
+                message: Metric or label-value set not found
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+    delete:
+      summary: Delete time-series data
+      description: Schedules a background operation to delete time-series data for a specific metric and label set.
+      operationId: delete_timeseries_data
+      security:
+        - {}
+      tags:
+        - metrics
+      parameters:
+        - name: metric_name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/meta.Selector'
+      responses:
+        '202':
+          description: Operation accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/success.AcceptedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '423':
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.LockedError'
+              example:
+                message: 'Locked: another modification operation is in progress'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /meta/status:
+    get:
+      summary: Get modification status
+      description: Retrieves the current status of metadata modification operation.
+      operationId: get_modification_status
+      security:
+        - {}
+      tags:
+        - metadata
+      parameters:
+        - name: operation_id
+          in: query
+          description: The unique identifier for the asynchronous background operation
+          required: true
+          schema:
+            type: string
+            example: 20251126T123456_1
+      responses:
+        '200':
+          description: Operation accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/meta.OperationStatusResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /meta/add:
+    patch:
+      summary: Add a new label to metric series
+      description: Schedules a background operation to add a new label with a default value to selected time series.
+      operationId: add_metadata
+      security:
+        - {}
+      tags:
+        - metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/meta.AddLabelRequest'
+      responses:
+        '202':
+          description: Operation accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/success.AcceptedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '423':
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.LockedError'
+              example:
+                message: 'Locked: another modification operation is in progress'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /meta/modify/key:
+    patch:
+      summary: Modify existing labels (keys)
+      description: Send a request regarding a background operation to rename label key.
+      operationId: modify_metadata_key
+      security:
+        - {}
+      tags:
+        - metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/meta.ModifyLabelKeyRequest'
+      responses:
+        '202':
+          description: Operation accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/success.AcceptedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '423':
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.LockedError'
+              example:
+                message: 'Locked: another modification operation is in progress'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /meta/modify/value:
+    patch:
+      summary: Modify existing label-values
+      description: Send a request regarding a background operation to rename label value for selected time series.
+      operationId: modify_metadata_value
+      security:
+        - {}
+      tags:
+        - metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/meta.ModifyLabelValueRequest'
+      responses:
+        '202':
+          description: Operation accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/success.AcceptedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '423':
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.LockedError'
+              example:
+                message: 'Locked: another modification operation is in progress'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+  /meta/delete:
+    patch:
+      summary: Delete labels
+      description: Send a request regarding a background operation to delete specified labels from selected time series.
+      operationId: delete_metadata
+      security:
+        - {}
+      tags:
+        - metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/meta.DeleteLabelRequest'
+      responses:
+        '202':
+          description: Operation accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/success.AcceptedResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.BadRequest'
+              example:
+                message: 'Bad request: malformed input data'
+        '423':
+          description: Locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.LockedError'
+              example:
+                message: 'Locked: another modification operation is in progress'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/error.InternalServerError'
+              example:
+                message: Internal server error
+components:
+  schemas:
+    success.SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+    metrics.MetricName:
+      type: string
+      example: node_cpu_seconds_total
+      description: The name of a time-series metric.
+    metrics.PageInfo:
+      type: object
+      properties:
+        offset:
+          type: integer
+          description: The starting position of the current page.
+          example: 0
+        limit:
+          type: integer
+          description: The maximum number of items per page.
+          example: 100
+        total:
+          type: integer
+          description: The total number of items available.
+          example: 12345
+    metrics.MetricsData:
+      type: object
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/metrics.MetricName'
+        page:
+          $ref: '#/components/schemas/metrics.PageInfo'
+    metrics.MetricsList:
+      allOf:
+        - $ref: '#/components/schemas/success.SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/metrics.MetricsData'
+    error.BadRequest:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    error.InternalServerError:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    metrics.LabelKey:
+      type: string
+      example: instance
+      description: The key or name of a label.
+    metrics.LabelKeysData:
+      type: object
+      properties:
+        metric:
+          $ref: '#/components/schemas/metrics.MetricName'
+        label_keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/metrics.LabelKey'
+    metrics.LabelKeysList:
+      allOf:
+        - $ref: '#/components/schemas/success.SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/metrics.LabelKeysData'
+    error.NotFoundError:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    metrics.LabelValue:
+      type: string
+      example: hostA:9100
+      description: The value of a label.
+    metrics.LabelValuesData:
+      type: object
+      properties:
+        metric:
+          $ref: '#/components/schemas/metrics.MetricName'
+        label_key:
+          $ref: '#/components/schemas/metrics.LabelKey'
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/metrics.LabelValue'
+        page:
+          $ref: '#/components/schemas/metrics.PageInfo'
+    metrics.LabelValuesList:
+      allOf:
+        - $ref: '#/components/schemas/success.SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/metrics.LabelValuesData'
+    meta.SelectorQuery:
+      type: object
+      description: |
+        Label selector. Each property name is a label key, and the value
+        is the label value for exact match (AND condition).
+      additionalProperties:
+        type: string
+    metrics.LabelSet:
+      type: object
+      description: A set of key-value pairs representing labels for a time series.
+      additionalProperties:
+        type: string
+      example:
+        __name__: node_cpu_seconds_total
+        instance: hostA:9100
+        job: node
+    metrics.TimeSeriesPayload:
+      type: object
+      properties:
+        metric:
+          $ref: '#/components/schemas/metrics.MetricName'
+        labels:
+          $ref: '#/components/schemas/metrics.LabelSet'
+        values:
+          type: array
+          description: An array of [timestamp, value] pairs.
+          items:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                  format: date-time
+                  description: Timestamp
+                  example: '2022-10-19T11:45:34+09:00'
+                - type: string
+                  description: Metric value
+                  example: '12345.0'
+        start:
+          type: string
+          format: date-time
+          example: '2022-10-19T11:45:34+09:00'
+        end:
+          type: string
+          format: date-time
+          example: '2022-10-19T12:45:34+09:00'
+        step:
+          type: integer
+          description: The downsampling step in seconds.
+    metrics.TimeSeriesData:
+      allOf:
+        - $ref: '#/components/schemas/success.SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/metrics.TimeSeriesPayload'
+    meta.Selector:
+      type: object
+      description: Selector for filtering time series by multiple label conditions (AND logic).
+      properties:
+        match:
+          type: array
+          description: Multiple label-key and value pairs can be specified (AND condition).
+          items:
+            type: object
+            required:
+              - key
+              - value
+            properties:
+              key:
+                $ref: '#/components/schemas/metrics.LabelKey'
+              value:
+                allOf:
+                  - $ref: '#/components/schemas/metrics.LabelValue'
+                example: .*hostA:9100.*
+              regex:
+                type: boolean
+                description: If true, performs a regular expression match (like PromQL's `=~`). It is exact match otherwise.
+                example: true
+                default: false
+    success.AcceptedResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - success
+        data:
+          type: object
+          properties:
+            operation_id:
+              type: string
+              description: A unique identifier for the asynchronous background operation.
+              example: 20251126T123456_1
+            summary:
+              type: object
+              description: A summary of the scheduled operation.
+    error.LockedError:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    meta.OperationStatusData:
+      type: object
+      properties:
+        process_status:
+          type: string
+          enum:
+            - in_progress
+            - completed
+            - failed
+        messages:
+          type: string
+          example: Detailed status or error messages, and error manipulation if needed.
+    meta.OperationStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/success.SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/meta.OperationStatusData'
+    meta.AddLabelRequest:
+      type: object
+      required:
+        - metric_name
+        - new_label_key
+        - default_value
+        - selector
+      properties:
+        metric_name:
+          $ref: '#/components/schemas/metrics.MetricName'
+        new_label_key:
+          $ref: '#/components/schemas/metrics.LabelKey'
+        default_value:
+          $ref: '#/components/schemas/metrics.LabelValue'
+        selector:
+          $ref: '#/components/schemas/meta.Selector'
+    meta.TimeRange:
+      type: object
+      properties:
+        start:
+          type: string
+          format: date-time
+          description: Start of the time range (ISO8601). If not specified, defaults to the earliest available data of the time-series.
+          example: '2022-10-19T11:45:34+09:00'
+        end:
+          type: string
+          format: date-time
+          description: End of the time range (ISO8601). If not specified, defaults to the latest available data of the time-series.
+          example: '2022-10-19T11:45:34+09:00'
+    meta.ModifyLabelKeyRequest:
+      type: object
+      required:
+        - metric_name
+        - range
+        - selector
+        - from_key
+        - to_key
+      properties:
+        metric_name:
+          $ref: '#/components/schemas/metrics.MetricName'
+        range:
+          $ref: '#/components/schemas/meta.TimeRange'
+        selector:
+          $ref: '#/components/schemas/meta.Selector'
+        from_key:
+          type: string
+          description: The current label key
+        to_key:
+          type: string
+          description: The new label key
+    meta.ModifyLabelValueRequest:
+      type: object
+      required:
+        - metric_name
+        - range
+        - selector
+        - key
+        - from_value
+        - to_value
+      properties:
+        metric_name:
+          $ref: '#/components/schemas/metrics.MetricName'
+        range:
+          $ref: '#/components/schemas/meta.TimeRange'
+          description: The time range for which the label value modification applies.
+        selector:
+          $ref: '#/components/schemas/meta.Selector'
+        key:
+          type: string
+          description: The label key whose value will be changed
+        from_value:
+          type: string
+          description: The current value
+        to_value:
+          type: string
+          description: The new value
+    meta.DeleteLabelRequest:
+      type: object
+      required:
+        - metric_name
+        - label_keys
+        - selector
+      properties:
+        metric_name:
+          $ref: '#/components/schemas/metrics.MetricName'
+        label_keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/metrics.LabelKey'
+        selector:
+          $ref: '#/components/schemas/meta.Selector'

@@ -1,0 +1,33 @@
+openapi: 3.0.1
+info:
+  title: VictoriaMetrics Cluster Data API
+  version: "1.0"
+  contact:
+    name: oqtopus-team
+    email: oqtopus-team[at]googlegroups.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+  - url: http://localhost:8080
+    description: Local server url
+
+paths:
+  /metrics/names:
+    $ref: "./paths/api_tsdb.yaml#/metrics.names"
+  /metrics/{metric_name}/labels:
+    $ref: "./paths/api_tsdb.yaml#/metrics.labels.keys"
+  /metrics/{metric_name}/labels/{label_key}/values:
+    $ref: "./paths/api_tsdb.yaml#/metrics.labels.values"
+  /metrics/{metric_name}/series/data:
+    $ref: "./paths/api_tsdb.yaml#/metrics.values"
+  /meta/status:
+    $ref: "./paths/api_tsdb.yaml#/meta.status"
+  /meta/add:
+    $ref: "./paths/api_tsdb.yaml#/meta.add"
+  /meta/modify/key:
+    $ref: "./paths/api_tsdb.yaml#/meta.modify.key"
+  /meta/modify/value:
+    $ref: "./paths/api_tsdb.yaml#/meta.modify.value"
+  /meta/delete:
+    $ref: "./paths/api_tsdb.yaml#/meta.delete"

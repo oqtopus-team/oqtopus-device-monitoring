@@ -1,0 +1,299 @@
+# Basic Data Structures
+metrics.MetricName:
+  type: string
+  example: "node_cpu_seconds_total"
+  description: "The name of a time-series metric."
+
+metrics.LabelKey:
+  type: string
+  example: "instance"
+  description: "The key or name of a label."
+
+metrics.LabelValue:
+  type: string
+  example: "hostA:9100"
+  description: "The value of a label."
+
+metrics.LabelSet:
+  type: object
+  description: "A set of key-value pairs representing labels for a time series."
+  additionalProperties:
+    type: string
+  example:
+    __name__: "node_cpu_seconds_total"
+    instance: "hostA:9100"
+    job: "node"
+
+metrics.DeleteTimeSeriesRequest:
+  type: object
+  required:
+    - metric_name
+    - selector
+  properties:
+    metric_name:
+      $ref: "#/metrics.MetricName"
+    selector:
+      $ref: "#/meta.Selector"
+
+meta.TimeRange:
+  type: object
+  properties:
+    start:
+      type: string
+      format: date-time
+      description: "Start of the time range (ISO8601). If not specified, defaults to the earliest available data of the time-series."
+      example: "2022-10-19T11:45:34+09:00"
+    end:
+      type: string
+      format: date-time
+      description: "End of the time range (ISO8601). If not specified, defaults to the latest available data of the time-series."
+      example:  "2022-10-19T11:45:34+09:00"
+
+# Pagination Info
+metrics.PageInfo:
+  type: object
+  properties:
+    offset:
+      type: integer
+      description: "The starting position of the current page."
+      example: 0
+    limit:
+      type: integer
+      description: "The maximum number of items per page."
+      example: 100
+    total:
+      type: integer
+      description: "The total number of items available."
+      example: 12345
+
+# GET Endpoint Schemas
+metrics.MetricsData:
+  type: object
+  properties:
+    metrics:
+      type: array
+      items:
+        $ref: "#/metrics.MetricName"
+    page:
+      $ref: "#/metrics.PageInfo"
+
+metrics.MetricsList:
+  allOf:
+    - $ref: "./success.yaml#/success.SuccessResponse"
+    - type: object
+      properties:
+        data:
+          $ref: "#/metrics.MetricsData"
+
+metrics.LabelKeysData:
+  type: object
+  properties:
+    metric:
+      $ref: "#/metrics.MetricName"
+    label_keys:
+      type: array
+      items:
+        $ref: "#/metrics.LabelKey"
+
+metrics.LabelKeysList:
+  allOf:
+    - $ref: "./success.yaml#/success.SuccessResponse"
+    - type: object
+      properties:
+        data:
+          $ref: "#/metrics.LabelKeysData"
+
+metrics.LabelValuesData:
+  type: object
+  properties:
+    metric:
+      $ref: "#/metrics.MetricName"
+    label_key:
+      $ref: "#/metrics.LabelKey"
+    values:
+      type: array
+      items:
+        $ref: "#/metrics.LabelValue"
+    page:
+      $ref: "#/metrics.PageInfo"
+
+metrics.LabelValuesList:
+  allOf:
+    - $ref: "./success.yaml#/success.SuccessResponse"
+    - type: object
+      properties:
+        data:
+          $ref: "#/metrics.LabelValuesData"
+
+metrics.TimeSeriesPayload:
+  type: object
+  properties:
+    metric:
+      $ref: "#/metrics.MetricName"
+    labels:
+      $ref: "#/metrics.LabelSet"
+    values:
+      type: array
+      description: "An array of [timestamp, value] pairs."
+      items:
+        type: array
+        items:
+          oneOf:
+            - type: string
+              format: date-time
+              description: "Timestamp"
+              example: "2022-10-19T11:45:34+09:00"
+            - type: string
+              description: "Metric value"
+              example: "12345.0"
+    start:
+      type: string
+      format: date-time
+      example: '2022-10-19T11:45:34+09:00'
+    end:
+      type: string
+      format: date-time
+      example: '2022-10-19T12:45:34+09:00'
+    step:
+      type: integer
+      description: "The downsampling step in seconds."
+
+metrics.TimeSeriesData:
+  allOf:
+    - $ref: "./success.yaml#/success.SuccessResponse"
+    - type: object
+      properties:
+        data:
+          $ref: "#/metrics.TimeSeriesPayload"
+
+# GET Modification-Operation processing status
+meta.OperationStatusData:
+  type: object
+  properties:
+    process_status:
+      type: string
+      enum: ["in_progress", "completed", "failed"]
+    messages:
+      type: string
+      example: "Detailed status or error messages, and error manipulation if needed."
+
+meta.OperationStatusResponse:
+  allOf:
+    - $ref: "./success.yaml#/success.SuccessResponse"
+    - type: object
+      properties:
+        data:
+          $ref: "#/meta.OperationStatusData"
+
+meta.Selector:
+  type: object
+  description: "Selector for filtering time series by multiple label conditions (AND logic)."
+  properties:
+    match:
+      type: array
+      description: "Multiple label-key and value pairs can be specified (AND condition)."
+      items:
+        type: object
+        required: [key, value]
+        properties:
+          key:
+            $ref: "#/metrics.LabelKey"
+          value:
+            allOf:
+              - $ref: "#/metrics.LabelValue"
+            example: ".*hostA:9100.*"
+          regex:
+            type: boolean
+            description: "If true, performs a regular expression match (like PromQL's `=~`). It is exact match otherwise."
+            example: true
+            default: false
+
+meta.SelectorQuery:
+  type: object
+  description: |
+    Label selector. Each property name is a label key, and the value
+    is the label value for exact match (AND condition).
+  additionalProperties:
+    type: string
+
+meta.AddLabelRequest:
+  type: object
+  required:
+    - metric_name
+    - new_label_key
+    - default_value
+    - selector
+  properties:
+    metric_name:
+      $ref: "#/metrics.MetricName"
+    new_label_key:
+      $ref: "#/metrics.LabelKey"
+    default_value:
+      $ref: "#/metrics.LabelValue"
+    selector:
+      $ref: "#/meta.Selector"
+
+meta.ModifyLabelKeyRequest:
+  type: object
+  required:
+    - metric_name
+    - range
+    - selector
+    - from_key
+    - to_key
+  properties:
+    metric_name:
+      $ref: "#/metrics.MetricName"
+    range:
+      $ref: "#/meta.TimeRange"
+    selector:
+      $ref: "#/meta.Selector"
+    from_key:
+      type: string
+      description: "The current label key"
+    to_key:
+      type: string
+      description: "The new label key"
+
+meta.ModifyLabelValueRequest:
+  type: object
+  required:
+    - metric_name
+    - range
+    - selector
+    - key
+    - from_value
+    - to_value
+  properties:
+    metric_name:
+      $ref: "#/metrics.MetricName"
+    range:
+      $ref: "#/meta.TimeRange"
+      description: "The time range for which the label value modification applies."
+    selector:
+      $ref: "#/meta.Selector"
+    key:
+      type: string
+      description: "The label key whose value will be changed"
+    from_value:
+      type: string
+      description: "The current value"
+    to_value:
+      type: string
+      description: "The new value"
+
+meta.DeleteLabelRequest:
+  type: object
+  required:
+    - metric_name
+    - label_keys
+    - selector
+  properties:
+    metric_name:
+      $ref: "#/metrics.MetricName"
+    label_keys:
+      type: array
+      items:
+        $ref: "#/metrics.LabelKey"
+    selector:
+      $ref: "#/meta.Selector"
