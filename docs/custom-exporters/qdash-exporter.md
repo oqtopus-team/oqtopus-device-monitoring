@@ -10,7 +10,7 @@ This exporter responds to pull requests from `vmagent` by returning calibration 
 - Data source access is performed only by a scheduled background collector, never by the `/metrics` request path
 - QDash access is implemented through `qdash.client.QDashClient`
 - The collector runs every configured interval (default: 1 hour)
-- On exporter startup, only the first collection cycle fetches all chip IDs; from the second cycle onward, only chips with `activity_status=active` are collected
+- On exporter startup and all subsequent cycles, only chips with `activity_status=active` are collected
 - Each collection cycle executes QDash requests serially for each target `chip_id × metric` combination
 - Collected records are written to immutable local spool files in the Local Spool File Buffer before they become visible to `/metrics`
 - The collector uses a configurable retry count per request
@@ -55,11 +55,8 @@ flowchart TD
   A4a -->|No| A4b[Fail startup]
   A4a -->|Yes| A5[Ready to serve /metrics]
 
-  B[Scheduler tick] --> B1{First cycle after startup?}
-  B1 -->|Yes| B2[Discover all chip IDs]
-  B1 -->|No| B3[Discover chip IDs where activity_status=active]
-  B2 --> C[Collect from QDash serially per chip_id x metric]
-  B3 --> C
+  B[Scheduler tick] --> B1[Discover chip IDs where activity_status=active]
+  B1 --> C[Collect from QDash serially per chip_id x metric]
   C --> D{Data found?}
   D -->|Yes| E[Write immutable batch file]
   D -->|No| F[Update empty_count only]
@@ -158,7 +155,7 @@ flowchart LR
 
   sched -->|1. Trigger by collection.interval_sec| exp
   exp -->|2. Read current window state| state
-  exp -->|3. First cycle: all chips; later: activity_status=active| qclient
+  exp -->|3. Discover and collect chips where activity_status=active| qclient
   qclient -->|4. HTTP API call| qdash
   qdash -->|5. Time-series response| qclient
   qclient -->|6. Normalized records| exp
@@ -180,7 +177,7 @@ In this flow, `qdash-exporter` returns metrics by reading data that has already 
 
 - **`qdash-exporter` scheduled collector**:
 
-  Independently from scraping, the exporter runs a background collection cycle at the configured interval. Only the first cycle after startup uses all chip IDs; later cycles use only chips with `activity_status=active`.
+  Independently from scraping, the exporter runs a background collection cycle at the configured interval and uses only chips with `activity_status=active`.
 
 - **`vmagent` to `VictoriaMetrics Cluster`**:
 
@@ -196,8 +193,7 @@ In this flow, `qdash-exporter` returns metrics by reading data that has already 
 - On startup, the exporter loads per-combination window state from the local file cache
 - On startup, the exporter validates JSON/schema and window field consistency of pending local spool batch files before serving `/metrics`
 - A background scheduler wakes up every `collection.interval_sec`
-- Only the first collection cycle after startup targets all chip IDs
-- From the second cycle onward, only `activity_status=active` chip IDs are targeted
+- Every collection cycle targets only `activity_status=active` chip IDs
 - For each targeted `chip_id` and configured `metric`, the exporter computes the current collection window from its per-combination `empty_count` state
 - The exporter uses `qdash.client.QDashClient.get_task_results_timeseries()` to fetch data for that window
 - Requests are executed serially; only one QDash request is in flight at a time
@@ -306,14 +302,14 @@ Note: for target metrics, one-of-two required applies: at least one of `targets.
 
 The exporter also relies on `qdash.client` environment variables or config-file settings for the actual QDash connection, authentication, TLS, proxy, and timeout settings.
 
-Chip IDs are discovered dynamically from QDash by the exporter. Only the first cycle after startup targets all chips; later cycles target chips with `activity_status=active`.
+Chip IDs are discovered dynamically from QDash by the exporter. Every collection cycle targets only chips with `activity_status=active`.
 
 ## 3. Detailed specifications
 
 ### 3.1 Data extraction
 
 - Data source: QDash API accessed through `qdash.client.QDashClient`
-- Chip targeting: first cycle after startup collects all chip IDs; later cycles collect chips with `activity_status=active`
+- Chip targeting: every cycle collects chips with `activity_status=active`
 - Metric catalog: `/metrics/config` is used to validate configured metrics and retrieve metric metadata (it does not auto-enable collection targets)
 - Primary method: `get_task_results_timeseries(...)`
 - Acquisition mode: scheduled background collection only
@@ -367,7 +363,7 @@ The background collector maintains separate `empty_count` state for each `chip_i
 
 - The collector runs every `collection.interval_sec`
 - The default interval is 1 hour
-- The first cycle after startup uses all discovered chip IDs; later cycles filter by `activity_status=active`
+- Every cycle filters chip IDs by `activity_status=active`
 - If a collection cycle is still running when the next tick arrives, the exporter does not start a second cycle in parallel; the next cycle begins only after the current one completes
 
 #### 3.3.2 Time range calculation rules
@@ -604,7 +600,7 @@ The current label set is intentionally minimal for stable time-series cardinalit
 **Execution model:**
 
 - All QDash requests are executed serially through `qdash.client`
-- Chip discovery rule: first cycle after startup uses all chips, later cycles use only `activity_status=active`
+- Chip discovery rule: every cycle uses only `activity_status=active`
 - The exporter owns the outer retry loop so that window-expansion behavior remains deterministic
 - To avoid double retries, the `qdash.client` transport-level retry setting should be effectively disabled or set to a single attempt inside the exporter process
 - Each `chip_id × metric` combination has independent retry and `empty_count` state
@@ -655,8 +651,7 @@ Operational note:
 - Metrics catalog API: `/metrics/config` (returns available `qubit_metrics` and `coupling_metrics` dictionaries)
 - Chip discovery API: an API that can enumerate chip IDs and `activity_status`
 - Chip discovery filter:
-  - First cycle after startup: no status filter (all chip IDs)
-  - Later cycles: `activity_status=active`
+  - Every cycle: `activity_status=active`
 - Primary timeseries API: `QDashClient.get_task_results_timeseries(...)` (backed by `/task-results/timeseries`)
 - Required request parameters:
   - `chip_id`
@@ -729,7 +724,7 @@ The exporter must log at least the following events:
 
 - Scheduler start and end of each collection cycle
 - Startup metric validation result (including failure when no metric is configured)
-- Chip discovery mode per cycle (first cycle all chips or later active-only)
+- Chip discovery mode per cycle (`activity_status=active` only)
 - Computed window per `chip_id × metric`
 - Window state cache load and save results
 - Retry attempts and their causes
