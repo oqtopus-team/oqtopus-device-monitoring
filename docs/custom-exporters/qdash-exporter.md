@@ -522,6 +522,27 @@ Each batch file contains:
 - The state cache must be stored under the same persistent `buffer.dir_path` volume so restart/recreate keeps per-`chip_id × metric` window state.
 - Exporter shutdown does not clear `window_state.json`; cached window size/state is reused after restart.
 
+**Example `window_state.json`:**
+
+```json
+{
+  "chip_001::t1": {
+    "empty_count": 0,
+    "last_window_from": "2026-06-11T00:00:00Z",
+    "last_window_to": "2026-06-11T01:00:00Z",
+    "updated_at": "2026-06-11T01:00:02Z"
+  },
+  "chip_001::t2_echo": {
+    "empty_count": 2,
+    "last_window_from": "2026-06-10T22:00:00Z",
+    "last_window_to": "2026-06-11T01:00:00Z",
+    "updated_at": "2026-06-11T01:00:03Z"
+  }
+}
+```
+
+In this example, each top-level key represents one `chip_id × metric` combination.
+
 #### 3.4.6 Startup validation of local spool JSON cache
 
 - At startup, the exporter scans `buffer.dir_path/pending/*.json` and validates that each filename matches the `batch_id` naming convention (`<YYYYMMDDTHHMMSSZ>-<chip_id>-<metric>_<number>.json`)
