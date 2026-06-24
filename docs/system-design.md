@@ -33,6 +33,7 @@
   - [6.3 QPU metrics: dilution refrigerator](#63-qpu-metrics-dilution-refrigerator)
   - [6.4 QuEL1 controlling machine](#64-quel1-controlling-machine)
   - [6.5 QuEL1-SE controlling machine](#65-quel1-se-controlling-machine)
+  - [6.6 QDash calibration metrics](#66-qdash-calibration-metrics)
 - [7 Visualization design](#7-visualization-design)
   - [7.1 Dashboard for `node-exporter`](#71-dashboard-for-node-exporter)
   - [7.2 Dashboard for `cAdvisor` (Docker containers)](#72-dashboard-for-cadvisor-docker-containers)
@@ -226,6 +227,7 @@ For these reasons, we decided to use vmagent instead of Prometheus as our data c
 | node-exporter                                     | monitoring-01             | prom/node-exporter:v1.9.1                     | 1                  | 9100 (exposed) | OS                                        | `vmagent`         | Monitoring host metrics                                   |
 | cAdvisor                                          | monitoring-01             | gcr.io/cadvisor/cadvisor:v0.52.1              | 1                  | 8088 (exposed) | Local containers                          | `vmagent`         | Container metrics                                         |
 | custom-exporter (**`cryo-metrics-exporter`**)     | monitoring-01             | ghcr.io/astral-sh/uv:python3.13-bookworm-slim | 1                  | 9101 (exposed) | proxy-to-dilution-refrigerator (HTTP/SMB) | `vmagent`         | Temperature + other cryogenic metrics normalization       |
+| custom-exporter (**`qdash-exporter`**)            | monitoring-01             | ghcr.io/astral-sh/uv:python3.13-bookworm-slim | 1                  | 9104 (exposed) | QDash (HTTPS)                             | `vmagent`         | QDash calibration metrics (buffered pull exposition)      |
 | `vmagent`                                         | monitoring-01             | victoriametrics/vmagent:v1.127.0              | 1                  | 8429 (exposed) | Exporters (HTTP scrape)                   | `vmauth`          | Scrape + relabel + remoteWrite                            |
 | `vmauth (insert)`                                 | monitoring-01             | victoriametrics/vmauth:v1.127.0               | 1                  | 8427 (exposed) | `vmagent`                                 | `vminsert`        | Auth and Load Balancing (write path)                      |
 | `vminsert`                                        | monitoring-01             | victoriametrics/vminsert:v1.127.0-cluster     | 2                  | 8480           | `vmauth (insert)`                         | `vmstorage`       | Ingestion fan-out                                         |
@@ -241,7 +243,7 @@ For these reasons, we decided to use vmagent instead of Prometheus as our data c
 
 #### 3.1.3 Custom exporters
 
-This project requires the development of two custom exporters to bridge data from non-standard sources into the Prometheus ecosystem. These components must be implemented as part of the development scope.
+This project requires the development of custom exporters to bridge data from non-standard sources into the Prometheus ecosystem. These components must be implemented as part of the development scope.
 
 These exporters include converters (e.g. unit conversion).
 
@@ -260,6 +262,16 @@ It fetches temperature data via HTTP from the BlueFors server on `proxy-to-dilut
 It then converts these disparate data formats into a unified set of Prometheus metrics.
 
 For detailed specification, see `./custom-exporters/cryo-metrics-exporter.md`.
+
+**`qdash-exporter`** in `monitoring-01`:
+
+Collects calibration time-series metrics from QDash using `qdash.client` on a scheduled interval and exposes them to `vmagent` through `/metrics`.
+
+Its scrape path is decoupled from upstream collection: QDash access happens only in the background collector, while `/metrics` serves already buffered data from local spool files.
+
+For resilience against temporary upstream empty/failure responses, it maintains per `chip_id x metric` window expansion state and persists both pending batches and state cache to local persistent storage.
+
+For detailed specification, see `./custom-exporters/qdash-exporter.md`.
 
 #### 3.1.4 Weekly relabelling container
 
@@ -387,6 +399,7 @@ echo "updated scrapedweek=${VALUE} and reloaded"
 | 6   | quel1_1-quel1_N                                           | ping status                | -                 | prometheus_client                                                  |
 | 7   | machine-to-monitor                                        | OS metrics                 | Docker            | node-exporter                                                      |
 | 8   | machine-to-monitor                                        | Other Docker containers    | Docker            | cAdvisor                                                           |
+| 9   | QDash                                                     | Calibration metrics        | prometheus_client | `qdash.client` scheduled pull + local spool buffer                 |
 
 #### 3.1.6 Sampling policy (defaults)
 
@@ -401,6 +414,7 @@ This value should be adjusted based on the operational requirements and performa
 | BlueFors temperature (HTTP/SMB parsed) by **`cryo-metrics-exporter`** | 60s             | 15s            |
 | quel1 control metrics (ICMP ping) by **`quel1-metrics-exporter`**     | 60s             | 15s            |
 | quel1-se control metrics by **`quel1-se-metrics-exporter`**           | 60s             | 15s            |
+| QDash calibration metrics by **`qdash-exporter`**                     | 60s             | 15s            |
 
 #### 3.1.7 Design Considerations
 
@@ -450,6 +464,9 @@ flowchart LR
       bluefors-server[bluefors server]
       file-logs[bluefors log files]
     end
+    subgraph qdash-platform[QDash Platform]
+      qdash-server[QDash Server]
+    end
 
     quel1-metrics-exporter -->|command| quel1
     quel1 -.->|metrics| quel1-metrics-exporter
@@ -483,6 +500,7 @@ flowchart LR
     weekly-relabeling-cron ==>|edit the setting file| vmagent
     monitoring-machine-api-server[api-server]
     monitoring-machine-custom-exporter[cryo-metrics-exporter]
+    monitoring-machine-qdash-exporter[qdash-exporter]
     monitoring-machine-node-exporter[node-exporter]
     monitoring-machine-cAdvisor[cAdvisor]
     monitoring-machine-os[host OS<br/>CPU, Mem, Disk]
@@ -491,6 +509,8 @@ flowchart LR
     via HTTP| monitoring-machine-custom-exporter
     file-logs ---->|metrics -others-
     via SMB| monitoring-machine-custom-exporter
+    qdash-server ---->|metrics -calibration-
+    via HTTPS| monitoring-machine-qdash-exporter
     monitoring-machine-os -->|metrics|monitoring-machine-node-exporter
     machine-to-monitor-cAdvisor ---->|metrics| vmagent
     proxy-to-qubit-controller-cAdvisor ---->|metrics| vmagent
@@ -500,6 +520,7 @@ flowchart LR
     quel1-se-metrics-exporter ---->|metrics| vmagent
     proxy-to-qubit-controller-node-exporter ---->|metrics| vmagent
     monitoring-machine-custom-exporter ---->|metrics| vmagent
+    monitoring-machine-qdash-exporter ---->|metrics| vmagent
     monitoring-machine-node-exporter ---->|metrics| vmagent
     vmagent -->|insert metrics| DB-vmauth-insert
     grafana[Grafana]
@@ -1064,6 +1085,15 @@ Metrics from the custom exporter for `quel1` systems.
 
 - `target_host`: The `quel1` host (e.g., `quel1_1`) from which the metric was derived.
 
+#### 5.3.5 QDash calibration metrics
+
+Metrics from `qdash-exporter` are generated from QDash time-series records and exposed with low-cardinality labels.
+
+- `chip_id`: QDash chip identifier.
+- `unit`: Physical unit returned by QDash (empty string when unavailable).
+- `qubit_id`: Present for per-qubit metrics.
+- `coupling_id`: Present for per-coupling metrics.
+
 ### 5.4 Cardinality management strategy
 
 To ensure long-term performance and scalability, the following strategies are enforced by `vmagent`'s `relabel_configs` and `metric_relabel_configs`.
@@ -1143,6 +1173,18 @@ Strictly, the temperature values obtained from the controller (`QuEL1-SE`) are n
 | `qubit_controller_actuator_usage` | Operation status of the actuator. Labels: `actuator_type="fan",location="sensor_location_2",unit="ratio",raw="true"`    |
 | `qubit_controller_actuator_usage` | Operation status of the actuator. Labels: `actuator_type="heater",location="sensor_location_3",unit="ratio",raw="true"` |
 | `qubit_controller_actuator_usage` | Operation status of the actuator. Labels: `actuator_type="heater",location="sensor_location4",unit="ratio",raw="true"`  |
+
+### 6.6 QDash calibration metrics
+
+`qdash-exporter` periodically collects QDash calibration metrics in the background, stores them in a local spool buffer, and serves the buffered series via `/metrics` for `vmagent` scraping.
+
+The detailed design and specifications are written in `./custom-exporters/qdash-exporter.md`.
+
+Representative metric families include:
+
+- Qubit metrics: `qdash_qubit_t1`, `qdash_qubit_t2_echo`, `qdash_qubit_t2_star`, `qdash_qubit_frequency`
+- Coupling metrics: `qdash_coupling_zx90_fidelity`, `qdash_coupling_bell_fidelity`, `qdash_coupling_static_zz`
+- Optional paired error metrics for qubit series when provided by QDash: `{base_metric}_error`
 
 ---
 

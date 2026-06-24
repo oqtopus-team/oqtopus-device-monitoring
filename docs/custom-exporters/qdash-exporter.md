@@ -10,7 +10,7 @@ This exporter responds to pull requests from `vmagent` by returning calibration 
 - Data source access is performed only by a scheduled background collector, never by the `/metrics` request path
 - QDash access is implemented through `qdash.client.QDashClient`
 - The collector runs every configured interval (default: 1 hour)
-- On exporter startup and all subsequent cycles, only chips with `activity_status=active` are collected
+- On exporter startup and all subsequent cycles, chip discovery follows the configured mode; the default is to collect only chips with `activity_status=active`
 - Each collection cycle executes QDash requests serially for each target `chip_id × metric` combination
 - Collected records are written to immutable local spool files in the Local Spool File Buffer before they become visible to `/metrics`
 - The collector uses a configurable retry count per request
@@ -36,9 +36,9 @@ This exporter responds to pull requests from `vmagent` by returning calibration 
 For the case of `collection.interval_sec=3600`, `collection.max_expand_windows=3`
 
 ```text
-w=1: now |<------------- 1 hour ------------->|
-w=2: now |<------------------- 2 hours ------------------->|
-w=3: now |<-------------------------------- 3 hours -------------------------------->|
+w=1: now |<------- 1 hour ------->|
+w=2: now |<------------------ 2 hours ------------------>|
+w=3: now |<----------------------------- 3 hours ----------------------------->|
 ```
 
 ### 1.3 Flow chart of the exporter
@@ -55,7 +55,7 @@ flowchart TD
   A4a -->|No| A4b[Fail startup]
   A4a -->|Yes| A5[Ready to serve /metrics]
 
-  B[Scheduler tick] --> B1[Discover chip IDs where activity_status=active]
+  B[Scheduler tick] --> B1[Discover chip IDs according to configured discovery mode]
   B1 --> C[Collect from QDash serially per chip_id x metric]
   C --> D{Data found?}
   D -->|Yes| E[Write immutable batch file]
@@ -107,7 +107,7 @@ flowchart TD
 **Assumptions:**
 
 - QDash API `/metrics/config` endpoint is available and returns consistent metric catalogs
-- QDash API chip discovery mechanism supports `activity_status` filtering
+- QDash API chip discovery mechanism supports filtering by `activity_status`
 - Operator is responsible for `qdash.client` configuration (auth, TLS, proxy, timeout settings)
 - Persistent storage is reliable and survives container lifecycle events (stop/start, recreate, node migration)
 - `vmagent` scrapes `/metrics` endpoint on a regular schedule (e.g., once per minute) as configured
@@ -155,7 +155,7 @@ flowchart LR
 
   sched -->|1. Trigger by collection.interval_sec| exp
   exp -->|2. Read current window state| state
-  exp -->|3. Discover and collect chips where activity_status=active| qclient
+  exp -->|3. Discover and collect chips according to configured discovery mode| qclient
   qclient -->|4. HTTP API call| qdash
   qdash -->|5. Time-series response| qclient
   qclient -->|6. Normalized records| exp
@@ -177,7 +177,7 @@ In this flow, `qdash-exporter` returns metrics by reading data that has already 
 
 - **`qdash-exporter` scheduled collector**:
 
-  Independently from scraping, the exporter runs a background collection cycle at the configured interval and uses only chips with `activity_status=active`.
+  Independently from scraping, the exporter runs a background collection cycle at the configured interval and uses the discovery mode configured for the deployment; the default is `activity_status=active` only.
 
 - **`vmagent` to `VictoriaMetrics Cluster`**:
 
@@ -193,7 +193,7 @@ In this flow, `qdash-exporter` returns metrics by reading data that has already 
 - On startup, the exporter loads per-combination window state from the local file cache
 - On startup, the exporter validates JSON/schema and window field consistency of pending local spool batch files before serving `/metrics`
 - A background scheduler wakes up every `collection.interval_sec`
-- Every collection cycle targets only `activity_status=active` chip IDs
+- Every collection cycle targets chip IDs according to `collection.chip_discovery_mode`
 - For each targeted `chip_id` and configured `metric`, the exporter computes the current collection window from its per-combination `empty_count` state
 - The exporter uses `qdash.client.QDashClient.get_task_results_timeseries()` to fetch data for that window
 - Requests are executed serially; only one QDash request is in flight at a time
@@ -201,7 +201,7 @@ In this flow, `qdash-exporter` returns metrics by reading data that has already 
 - If the result is empty, or if all retry attempts fail with an upstream request failure, no batch file is written and `empty_count` is incremented for that combination
 - If the result is successful and non-empty, `empty_count` is reset to `0`
 - After each cycle, the exporter persists updated window state to the local file cache
-- `vmagent` scrapes `/metrics`; the exporter reads all pending batch files and returns them in Prometheus exposition format
+- `vmagent` scrapes `/metrics`; the exporter first filters pending files by metric inferred from filename and reads only batches for currently enabled metrics
 - Pending batches for metrics removed from current config are retained in local spool and are not returned to `vmagent`
 - After successful `/metrics` response completion, the exporter deletes the served batch files
 
@@ -227,6 +227,7 @@ collection:
   retry_max_attempts: 3
   max_expand_windows: 24
   tag: "calibration"
+  chip_discovery_mode: "active"
 
 # Local durable buffer
 buffer:
@@ -273,24 +274,27 @@ targets:
 - `buffer.dir_path` must point to persistent storage (for example, a host bind mount or persistent volume), not ephemeral container filesystem, so buffered data survives container restart/recreate.
 - At least one metric must be configured across `targets.qubit_metrics` and `targets.coupling_metrics`; if both are omitted or empty, exporter startup fails.
 - If new metric types are introduced in QDash, operators must update `config.yaml` (the `targets` metric lists) and restart the exporter to start collecting them.
+- `collection.chip_discovery_mode` controls whether the exporter collects only chips with `activity_status=active` or all chips returned by QDash; the default is `active`.
 
 #### 2.3.2 Configuration Parameters
 
-| Parameter                       | YAML Path                       | Environment Variable            | Description                                                                                                                                                              | Required | Default       |
-| ------------------------------- | ------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------: | ------------- |
-| **Exporter Port**               | `exporter.port`                 | `EXPORTER_PORT`                 | The port on which the exporter will listen for `/metrics` requests.                                                                                                      |    No    | `9104`        |
-| **Exporter Timezone**           | `exporter.timezone`             | `EXPORTER_TIMEZONE`             | The timezone for logging timestamps.                                                                                                                                     |    No    | `UTC`         |
-| **Collection Interval**         | `collection.interval_sec`       | `COLLECTION_INTERVAL_SEC`       | How often the background collector runs.                                                                                                                                 |    No    | `3600`        |
-| **Retry Max Attempts**          | `collection.retry_max_attempts` | `COLLECTION_RETRY_MAX_ATTEMPTS` | Maximum retry attempts per QDash request before applying window expansion on the next cycle.                                                                             |    No    | `3`           |
-| **Max Expand Windows**          | `collection.max_expand_windows` | `COLLECTION_MAX_EXPAND_WINDOWS` | Maximum number of collection windows retained in the backward expansion logic.                                                                                           |    No    | `24`          |
-| **Collection Tag**              | `collection.tag`                | `COLLECTION_TAG`                | Optional tag passed to `qdash.client` when requesting time-series data.                                                                                                  |    No    | `calibration` |
-| **Buffer Directory**            | `buffer.dir_path`               | `BUFFER_DIR_PATH`               | Directory where immutable batch files are stored.                                                                                                                        |   Yes    | -             |
-| **QDash Client Config File**    | `qdash_client.config_file`      | `QDASH_CLIENT_CONFIG_FILE`      | Optional path to a `qdash.client` config file. If empty, `qdash.client` uses its default lookup behavior.                                                                |    No    | `""`          |
-| **QDash Client Config Section** | `qdash_client.config_section`   | `QDASH_CLIENT_CONFIG_SECTION`   | Section name within the `qdash.client` config file.                                                                                                                      |    No    | `default`     |
-| **Qubit Metrics**               | `targets.qubit_metrics`         | `TARGETS_QUBIT_METRICS`         | Comma-separated list of qubit metric names to collect. Required as part of the target metrics configuration (at least one of qubit/coupling lists must be non-empty).    |   Yes    | -             |
-| **Coupling Metrics**            | `targets.coupling_metrics`      | `TARGETS_COUPLING_METRICS`      | Comma-separated list of coupling metric names to collect. Required as part of the target metrics configuration (at least one of qubit/coupling lists must be non-empty). |   Yes    | -             |
+| Parameter                       | YAML Path                        | Environment Variable             | Description                                                                                                                                                              | Required | Default       |
+| ------------------------------- | -------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------: | ------------- |
+| **Exporter Port**               | `exporter.port`                  | `EXPORTER_PORT`                  | The port on which the exporter will listen for `/metrics` requests.                                                                                                      |    No    | `9104`        |
+| **Exporter Timezone**           | `exporter.timezone`              | `EXPORTER_TIMEZONE`              | The timezone for logging timestamps.                                                                                                                                     |    No    | `UTC`         |
+| **Collection Interval**         | `collection.interval_sec`        | `COLLECTION_INTERVAL_SEC`        | How often the background collector runs.                                                                                                                                 |    No    | `3600`        |
+| **Retry Max Attempts**          | `collection.retry_max_attempts`  | `COLLECTION_RETRY_MAX_ATTEMPTS`  | Maximum retry attempts per QDash request before applying window expansion on the next cycle.                                                                             |    No    | `3`           |
+| **Max Expand Windows**          | `collection.max_expand_windows`  | `COLLECTION_MAX_EXPAND_WINDOWS`  | Maximum number of collection windows retained in the backward expansion logic.                                                                                           |    No    | `24`          |
+| **Collection Tag**              | `collection.tag`                 | `COLLECTION_TAG`                 | Optional tag passed to `qdash.client` when requesting time-series data.                                                                                                  |    No    | `calibration` |
+| **Chip Discovery Mode**         | `collection.chip_discovery_mode` | `COLLECTION_CHIP_DISCOVERY_MODE` | Discovery mode for chip targeting. `active` collects only chips with `activity_status=active`; `all` collects all discovered chips.                                      |    No    | `active`      |
+| **Buffer Directory**            | `buffer.dir_path`                | `BUFFER_DIR_PATH`                | Directory where immutable batch files are stored.                                                                                                                        |   Yes    | -             |
+| **QDash Client Config File**    | `qdash_client.config_file`       | `QDASH_CLIENT_CONFIG_FILE`       | Optional path to a `qdash.client` config file. If empty, `qdash.client` uses its default lookup behavior.                                                                |    No    | `""`          |
+| **QDash Client Config Section** | `qdash_client.config_section`    | `QDASH_CLIENT_CONFIG_SECTION`    | Section name within the `qdash.client` config file.                                                                                                                      |    No    | `default`     |
+| **Qubit Metrics**               | `targets.qubit_metrics`          | `TARGETS_QUBIT_METRICS`          | Comma-separated list of qubit metric names to collect. Required as part of the target metrics configuration (at least one of qubit/coupling lists must be non-empty).    |   Yes    | -             |
+| **Coupling Metrics**            | `targets.coupling_metrics`       | `TARGETS_COUPLING_METRICS`       | Comma-separated list of coupling metric names to collect. Required as part of the target metrics configuration (at least one of qubit/coupling lists must be non-empty). |   Yes    | -             |
 
 Note: for target metrics, one-of-two required applies: at least one of `targets.qubit_metrics` or `targets.coupling_metrics` must be non-empty.
+Note: `collection.chip_discovery_mode` defaults to `active`; set it to `all` to collect metrics from all discovered chips.
 
 #### 2.3.3 Environment Variables
 
@@ -302,14 +306,14 @@ Note: for target metrics, one-of-two required applies: at least one of `targets.
 
 The exporter also relies on `qdash.client` environment variables or config-file settings for the actual QDash connection, authentication, TLS, proxy, and timeout settings.
 
-Chip IDs are discovered dynamically from QDash by the exporter. Every collection cycle targets only chips with `activity_status=active`.
+Chip IDs are discovered dynamically from QDash by the exporter. Every collection cycle targets chips according to `collection.chip_discovery_mode`.
 
 ## 3. Detailed specifications
 
 ### 3.1 Data extraction
 
 - Data source: QDash API accessed through `qdash.client.QDashClient`
-- Chip targeting: every cycle collects chips with `activity_status=active`
+- Chip targeting: every cycle collects chips according to `collection.chip_discovery_mode`
 - Metric catalog: `/metrics/config` is used to validate configured metrics and retrieve metric metadata (it does not auto-enable collection targets)
 - Primary method: `get_task_results_timeseries(...)`
 - Acquisition mode: scheduled background collection only
@@ -323,6 +327,7 @@ Chip IDs are discovered dynamically from QDash by the exporter. Every collection
 - Response format: Prometheus Text Exposition Format
 - Pull behavior:
   - Reads local pending batch files only
+  - Infers metric name from `batch_id` in filename and skips files for metrics not enabled in current config before opening JSON contents
   - Returns only samples for metrics currently enabled in `targets.qubit_metrics` and `targets.coupling_metrics`
   - Pending samples for metrics disabled in current config are excluded from `/metrics` output
   - Does not trigger `qdash.client` or any outbound QDash HTTP request
@@ -363,7 +368,7 @@ The background collector maintains separate `empty_count` state for each `chip_i
 
 - The collector runs every `collection.interval_sec`
 - The default interval is 1 hour
-- Every cycle filters chip IDs by `activity_status=active`
+- Every cycle filters chip IDs according to `collection.chip_discovery_mode`
 - If a collection cycle is still running when the next tick arrives, the exporter does not start a second cycle in parallel; the next cycle begins only after the current one completes
 
 #### 3.3.2 Time range calculation rules
@@ -434,6 +439,8 @@ flowchart TD
 - Base directory: `buffer.dir_path`
 - Pending batches: `buffer.dir_path/pending/<batch_id>.json`
 - Temporary writes: `buffer.dir_path/tmp/<batch_id>.json.tmp`
+- `batch_id` naming convention: `<YYYYMMDDTHHMMSSZ>-<chip_id>-<metric>_<number>` (example: `20260611T010000Z-chip_001-t1_1`)
+- `<number>` is a natural number (`1, 2, 3, ...`) used as a per-second sequence for uniqueness
 - A batch becomes visible only after an atomic rename from `tmp` to `pending`
 - The base directory must be on non-volatile storage.
 - Exporter shutdown does not clear files in `buffer.dir_path`; retained files are reused after restart.
@@ -453,7 +460,7 @@ Each batch file contains:
 
 ```json
 {
-  "batch_id": "20260611T010000Z-chip_001-t1-7f9c",
+  "batch_id": "20260611T010000Z-chip_001-t1_1",
   "collected_at": "2026-06-11T01:00:00Z",
   "window": {
     "from": "2026-06-11T00:00:00Z",
@@ -491,6 +498,7 @@ Each batch file contains:
 
 - If a metric is removed from `config.yaml` targets, existing pending batches for that metric remain in local spool
 - Those retained batches are excluded from `/metrics` output while the metric stays disabled
+- The exporter skips these files before JSON parse by using metric information encoded in filename `batch_id`
 - If the metric is re-enabled later, retained batches are eligible for normal serving again
 - Retained disabled-metric batches are not auto-deleted by the normal serve/delete flow
 
@@ -516,11 +524,13 @@ Each batch file contains:
 
 #### 3.4.6 Startup validation of local spool JSON cache
 
-- At startup, the exporter scans `buffer.dir_path/pending/*.json` and validates each file as JSON plus required batch schema fields (`batch_id`, `collected_at`, `window`, `chip_id`, `metric`, `records`)
+- At startup, the exporter scans `buffer.dir_path/pending/*.json` and validates that each filename matches the `batch_id` naming convention (`<YYYYMMDDTHHMMSSZ>-<chip_id>-<metric>_<number>.json`)
+- At startup, the exporter infers metric from filename and only opens JSON for metrics currently enabled in `targets`.
+- For enabled metrics, the exporter validates each file as JSON plus required batch schema fields (`batch_id`, `collected_at`, `window`, `chip_id`, `metric`, `records`)
 - At startup, the exporter also validates batch `window` fields (`window.from`, `window.to`) for parseability and ordering (`from < to`)
 - Validation also checks basic type/shape constraints for `records` entries (for example, presence/type of `timestamp_ms`, `value`, and one of `qubit_id` or `coupling_id`)
 - If a record-level timestamp exists, it must be within the batch window bounds or be explicitly rejected by validation policy
-- If any pending batch file is unreadable, malformed, or schema-invalid, startup fails with a local state error until operator intervention
+- If any pending batch file for an enabled metric is unreadable, malformed, or schema-invalid, startup fails with a local state error until operator intervention
 - This startup validation is performed in addition to window-state cache validation (`state/window_state.json`)
 
 ### 3.5 Data transformation
@@ -571,15 +581,23 @@ For qubit metrics, when QDash returns `error`, the exporter also emits a paired 
 
 #### Labels of the metrics
 
+The exporter uses a small, fixed label set. The table below summarizes the labels by metric family.
+
+| Metric family       | Metric examples                                                                                                                                                                        | Labels                           | Typical values                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
+| Qubit metrics       | `qdash_qubit_t1`, `qdash_qubit_t2_echo`, `qdash_qubit_frequency`, `qdash_qubit_anharmonicity`, `qdash_qubit_readout_fidelity`, `qdash_qubit_x90_fidelity`, `qdash_qubit_x180_fidelity` | `chip_id`, `qubit_id`, `unit`    | `chip_001`, `0`, `us`, `MHz`, `1`, `""` |
+| Qubit error metrics | `qdash_qubit_t1_error`, `qdash_qubit_t2_echo_error`                                                                                                                                    | `chip_id`, `qubit_id`, `unit`    | `chip_001`, `0`, `""`                   |
+| Coupling metrics    | `qdash_coupling_zx90_fidelity`, `qdash_coupling_bell_fidelity`, `qdash_coupling_static_zz`                                                                                             | `chip_id`, `coupling_id`, `unit` | `chip_001`, `0-1`, `1-2`, `ns`, `""`    |
+
 **Common labels:**
 
 - `chip_id`
 
-  The chip identifier as returned by QDash.
+  The chip identifier as returned by QDash. Typical values look like `chip_001`.
 
 - `unit`
 
-  The physical unit of the metric as returned by QDash. If QDash does not provide a unit, the label value is set to `""`.
+  The physical unit of the metric as returned by QDash. If QDash does not provide a unit, the label value is set to `""`. Typical values include `us`, `ns`, `MHz`, or `""`.
 
 The current label set is intentionally minimal for stable time-series cardinality. High-cardinality identifiers such as `execution_id` and `task_id` are not used as Prometheus labels. Descriptive text fields such as `description` are also not stored as labels or metric metadata.
 
@@ -587,20 +605,20 @@ The current label set is intentionally minimal for stable time-series cardinalit
 
 - `qubit_id`
 
-  The qubit identifier associated with the sample.
+  The qubit identifier associated with the sample. Typical values look like `0`, `1`, or `2`.
 
 **Coupling metric labels:**
 
 - `coupling_id`
 
-  The coupling identifier associated with the sample.
+  The coupling identifier associated with the sample. Typical values look like `0-1` or `1-2`.
 
 ### 3.8 Collection execution model
 
 **Execution model:**
 
 - All QDash requests are executed serially through `qdash.client`
-- Chip discovery rule: every cycle uses only `activity_status=active`
+- Chip discovery rule: every cycle uses the configured discovery mode; the default is `activity_status=active`
 - The exporter owns the outer retry loop so that window-expansion behavior remains deterministic
 - To avoid double retries, the `qdash.client` transport-level retry setting should be effectively disabled or set to a single attempt inside the exporter process
 - Each `chip_id × metric` combination has independent retry and `empty_count` state
@@ -649,9 +667,9 @@ Operational note:
 #### 4.3.2 Collection API
 
 - Metrics catalog API: `/metrics/config` (returns available `qubit_metrics` and `coupling_metrics` dictionaries)
-- Chip discovery API: an API that can enumerate chip IDs and `activity_status`
+- Chip discovery API: an API that can enumerate chip IDs and their `activity_status`
 - Chip discovery filter:
-  - Every cycle: `activity_status=active`
+  - Every cycle: the configured discovery mode is applied; default is `activity_status=active`
 - Primary timeseries API: `QDashClient.get_task_results_timeseries(...)` (backed by `/task-results/timeseries`)
 - Required request parameters:
   - `chip_id`
@@ -712,7 +730,70 @@ All values returned from QDash are validated before conversion to Prometheus met
 - If all entries are invalid or empty, no batch file is emitted for that `chip_id × metric` combination
 - Log all invalid entries for debugging
 
-## 5. Logging
+## 5. Operator procedures
+
+### 5.1 Manual data backfill
+
+When the background collector fails to fetch data from QDash for an extended period (for example, due to sustained upstream unavailability), an operator can manually backfill historical calibration data by directly placing batch files into the Local Spool File Buffer.
+
+#### 5.1.1 When to use this procedure
+
+- The exporter has been returning `503` for an unacceptable duration and buffered data has been drained
+- QDash upstream was unavailable during a time window and the automatic window expansion (`max_expand_windows`) was insufficient to recover the data
+- Historical calibration data needs to be retroactively injected into the metrics pipeline
+
+#### 5.1.2 Procedure
+
+1. **Fetch data from QDash manually**
+
+   Use `qdash.client.QDashClient.get_task_results_timeseries()` or the QDash API directly to obtain the calibration data for the target `chip_id`, `metric`, and time range.
+
+2. **Format the data as a batch file**
+
+   Create a JSON file conforming to the batch schema defined in section 3.4.2. All required fields must be present and valid:
+
+   ```json
+   {
+     "batch_id": "<unique_id>",
+     "collected_at": "<UTC ISO8601 timestamp>",
+     "window": {
+       "from": "<UTC ISO8601 timestamp>",
+       "to": "<UTC ISO8601 timestamp>"
+     },
+     "chip_id": "<chip_id>",
+     "metric": "<metric_name>",
+     "records": [
+       {
+         "timestamp_ms": <UTC epoch milliseconds>,
+         "qubit_id": "<qubit_id>",
+         "value": <numeric value>,
+         "unit": "<unit string or empty string>"
+       }
+     ]
+   }
+   ```
+
+- `batch_id` must be unique and follow `<YYYYMMDDTHHMMSSZ>-<chip_id>-<metric>_<number>` (for example, `20260611T010000Z-chip_001-t1_1`).
+- `<number>` is a natural number sequence (`1, 2, 3, ...`) and must be incremented on collision within the same second.
+- `window.from` must be strictly less than `window.to`.
+- Each record must contain `timestamp_ms` (integer), `value` (numeric), and either `qubit_id` (qubit metrics) or `coupling_id` (coupling metrics). `unit` must be a string; use `""` if not available.
+- `timestamp_ms` values in each record must be within the `window.from`–`window.to` range.
+
+3. **Place the file in the pending directory**
+
+   Copy the JSON file to `buffer.dir_path/pending/<batch_id>.json`.
+   - If the exporter is **running**: the file becomes visible to the next vmagent scrape immediately after placement, provided the metric is enabled in current config.
+   - If the exporter is **stopped**: the file is validated at the next startup (section 3.4.6). Any schema or ordering violation causes startup to fail.
+
+#### 5.1.3 Constraints and notes
+
+- The target metric must be listed in `targets.qubit_metrics` or `targets.coupling_metrics` in `config.yaml`; otherwise the batch is retained in local spool but excluded from `/metrics` output (see section 3.4.4).
+- `window_state.json` does not need to be updated for manually placed batches. The window state tracks only the scheduler's collection state and is independent of pending batch file contents.
+- Manual batch files are subject to the same serve-and-delete flow as automatically collected batches: they are deleted after a successful `/metrics` response that includes their records.
+- After successful serving, manually backfilled data is no longer retained locally. Ensure the source data is archived separately if long-term retention is required.
+- Do not place files directly into `buffer.dir_path/tmp/`; only `pending/` is read by the exporter pull path.
+
+## 6. Logging
 
 The logging configuration is defined in a separate `logging.yaml` file, which is compatible with Python's `logging.config.dictConfig`. The exporter reads this file at startup to configure formatters, handlers, and log levels.
 
@@ -724,7 +805,7 @@ The exporter must log at least the following events:
 
 - Scheduler start and end of each collection cycle
 - Startup metric validation result (including failure when no metric is configured)
-- Chip discovery mode per cycle (`activity_status=active` only)
+- Chip discovery mode per cycle (default `activity_status=active`, configurable to `all`)
 - Computed window per `chip_id × metric`
 - Window state cache load and save results
 - Retry attempts and their causes
