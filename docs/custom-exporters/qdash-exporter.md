@@ -25,7 +25,8 @@ This exporter responds to pull requests from `vmagent` by returning calibration 
 
 - A window is a half-open interval `[from, to)` per `chip_id × metric` combination.
 - Length = `collection.interval_sec × w`, where `w = min(empty_count + 1, max_expand_windows)`.
-- On empty data or upstream request failures after all retry attempts are exhausted: `empty_count++` and the next scheduled collection expands the window backward in time.
+- On successful responses with empty data (`data_count = 0`): treat as normal, do not expand the window, and keep the next collection on the base window (`w = 1`).
+- On upstream request failures after all retry attempts are exhausted: `empty_count++` and the next scheduled collection expands the window backward in time.
 - On success (`data_count > 0`): `empty_count` resets to `0`, so the next window returns to `w = 1`.
 - Upon reaching the upper bound, older intervals are discarded and only the latest `max_expand_windows` intervals are considered.
 - Window state is managed independently for each `chip_id × metric` combination and persisted in the file cache.
@@ -57,11 +58,13 @@ flowchart TD
 
   B[Scheduler tick] --> B1[Discover chip IDs according to configured discovery mode]
   B1 --> C[Collect from QDash serially per chip_id x metric]
-  C --> D{Data found?}
-  D -->|Yes| E[Write immutable batch file]
-  D -->|No| F[Update empty_count only]
+  C --> D{Collection result}
+  D -->|Success with data| E[Write immutable batch file]
+  D -->|Success with empty data| F[Do not write batch file and keep/reset empty_count to 0]
+  D -->|Upstream request failure after retries| X[Increment empty_count]
   E --> G[Persist window state cache]
   F --> G
+  X --> G
 
   H[vmagent GET /metrics] --> I[Read pending batch files]
   I --> J{Any pending samples?}
@@ -198,7 +201,8 @@ In this flow, `qdash-exporter` returns metrics by reading data that has already 
 - The exporter uses `qdash.client.QDashClient.get_task_results_timeseries()` to fetch data for that window
 - Requests are executed serially; only one QDash request is in flight at a time
 - If data is returned, the exporter normalizes the result and writes an immutable batch file to local storage
-- If the result is empty, or if all retry attempts fail with an upstream request failure, no batch file is written and `empty_count` is incremented for that combination
+- If the result is successful and empty, no batch file is written and `empty_count` is reset to `0` (normal path)
+- If all retry attempts fail with an upstream request failure, no batch file is written and `empty_count` is incremented for that combination
 - If the result is successful and non-empty, `empty_count` is reset to `0`
 - After each cycle, the exporter persists updated window state to the local file cache
 - `vmagent` scrapes `/metrics`; the exporter first filters pending files by metric inferred from filename and reads only batches for currently enabled metrics
@@ -236,7 +240,7 @@ buffer:
 # qdash.client bootstrap
 qdash_client:
   config_file: ""
-  config_section: "default"
+  config_profile: "default"
 
 # Target metrics to collect
 targets:
@@ -289,7 +293,7 @@ targets:
 | **Chip Discovery Mode**         | `collection.chip_discovery_mode` | `COLLECTION_CHIP_DISCOVERY_MODE` | Discovery mode for chip targeting. `active` collects only chips with `activity_status=active`; `all` collects all discovered chips.                                      |    No    | `active`      |
 | **Buffer Directory**            | `buffer.dir_path`                | `BUFFER_DIR_PATH`                | Directory where immutable batch files are stored.                                                                                                                        |   Yes    | -             |
 | **QDash Client Config File**    | `qdash_client.config_file`       | `QDASH_CLIENT_CONFIG_FILE`       | Optional path to a `qdash.client` config file. If empty, `qdash.client` uses its default lookup behavior.                                                                |    No    | `""`          |
-| **QDash Client Config Section** | `qdash_client.config_section`    | `QDASH_CLIENT_CONFIG_SECTION`    | Section name within the `qdash.client` config file.                                                                                                                      |    No    | `default`     |
+| **QDash Client Config Profile** | `qdash_client.config_profile`    | `QDASH_CLIENT_CONFIG_PROFILE`    | Profile name within the `qdash.client` config file.                                                                                                                      |    No    | `default`     |
 | **Qubit Metrics**               | `targets.qubit_metrics`          | `TARGETS_QUBIT_METRICS`          | Comma-separated list of qubit metric names to collect. Required as part of the target metrics configuration (at least one of qubit/coupling lists must be non-empty).    |   Yes    | -             |
 | **Coupling Metrics**            | `targets.coupling_metrics`       | `TARGETS_COUPLING_METRICS`       | Comma-separated list of coupling metric names to collect. Required as part of the target metrics configuration (at least one of qubit/coupling lists must be non-empty). |   Yes    | -             |
 
@@ -386,7 +390,9 @@ to_at = now
 ```python
 if data_count > 0:
     empty_count = 0
-elif retryable_failure_or_empty:
+elif success_with_empty:
+  empty_count = 0
+elif retryable_upstream_failure:
     empty_count = min(
         empty_count + 1,
         config.collection.max_expand_windows - 1,
@@ -400,8 +406,9 @@ The exporter applies the following sequence for each request:
 
 1. Attempt the QDash request.
 2. If it fails with an upstream request failure, retry up to `collection.retry_max_attempts` times.
-3. If all attempts still fail, treat the combination as `retryable_failure_or_empty` for window-expansion purposes.
-4. Only exporter-local fatal conditions outside normal upstream request handling are excluded from window expansion.
+3. If all attempts still fail, treat the combination as `retryable_upstream_failure` for window-expansion purposes.
+4. If the response is successful but empty (`data_count = 0`), treat it as normal and keep/reset `empty_count` to `0`.
+5. Only exporter-local fatal conditions outside normal upstream request handling are excluded from window expansion.
 
 #### 3.3.4 Example scenario
 
@@ -410,15 +417,17 @@ Assuming `collection.interval_sec=3600`, `collection.max_expand_windows=3`:
 | Collection # | Result                                           | empty_count | Window Multiplier | Time range      |
 | ------------ | ------------------------------------------------ | ----------- | ----------------- | --------------- |
 | 1            | data found                                       | 0           | 1                 | `[now-1h, now)` |
-| 2            | empty                                            | `0→1`       | 1                 | `[now-1h, now)` |
-| 3            | upstream request failure after retries exhausted | `1→2`       | 2                 | `[now-2h, now)` |
-| 4            | upstream request failure after retries exhausted | `2` (max)   | 3                 | `[now-3h, now)` |
+| 2            | success with empty data (`data_count = 0`)       | `0→0`       | 1                 | `[now-1h, now)` |
+| 3            | upstream request failure after retries exhausted | `0→1`       | 1                 | `[now-1h, now)` |
+| 4            | upstream request failure after retries exhausted | `1→2`       | 2                 | `[now-2h, now)` |
 | 5            | data found                                       | `2→0`       | 3                 | `[now-3h, now)` |
 | 6            | data found                                       | 0           | 1                 | `[now-1h, now)` |
 
 > Note: The window multiplier in each row is calculated from the pre-request `empty_count`.
 >
 > State update (`empty_count` reset/increment) is applied after the request result is known. For this reason, Collection #5 still uses multiplier `3` even though `empty_count` becomes `0` at the end of that collection.
+
+In this policy, empty successful responses are normal for this exporter and do not trigger expansion by themselves.
 
 ### 3.4 Local spool file buffer specification
 
@@ -509,18 +518,29 @@ Each batch file contains:
 - Cache file path: `buffer.dir_path/state/window_state.json`
 - Temporary write path: `buffer.dir_path/state/window_state.json.tmp`
 - The exporter updates window state using atomic rename from `*.tmp` to `window_state.json`
-- Cache key: `chip_id + metric`
-- Cache value: at least `empty_count`, `last_window_from`, `last_window_to`, and `updated_at`
 - On startup, if the state file exists and is valid, the exporter loads it and resumes window expansion state
-- Startup validation for window state includes at least:
-  - required keys and value types
-  - `empty_count` range (`0 <= empty_count <= max_expand_windows - 1`)
-  - window ordering (`last_window_from < last_window_to`)
-  - parseable UTC timestamp fields (`last_window_from`, `last_window_to`, `updated_at`)
 - If the cache file is missing, the exporter starts with empty in-memory state
 - If the cache file is corrupt, exporter startup fails and the process exits with a local state error until operator intervention
 - The state cache must be stored under the same persistent `buffer.dir_path` volume so restart/recreate keeps per-`chip_id × metric` window state.
 - Exporter shutdown does not clear `window_state.json`; cached window size/state is reused after restart.
+
+**Schema:**
+
+The file is a JSON object. Each top-level key identifies one `chip_id × metric` combination using the format `<chip_id>::<metric>` (double-colon separator). Each value is an object with the following fields:
+
+| Field              | Type    | Constraints                                                         | Description                                                                   |
+| ------------------ | ------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `empty_count`      | integer | `0 <= empty_count <= max_expand_windows - 1`                        | Number of consecutive upstream failures since last successful data collection |
+| `last_window_from` | string  | UTC ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`); must be < `last_window_to`   | Start of the last requested collection window (inclusive)                     |
+| `last_window_to`   | string  | UTC ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`); must be > `last_window_from` | End of the last requested collection window (exclusive)                       |
+| `updated_at`       | string  | UTC ISO 8601 (`YYYY-MM-DDTHH:MM:SSZ`)                               | Timestamp when this entry was last written                                    |
+
+Startup validation for window state includes at least:
+
+- All four required fields are present and of the correct type
+- `empty_count` satisfies `0 <= empty_count <= max_expand_windows - 1`
+- `last_window_from < last_window_to` (strict ordering)
+- `last_window_from`, `last_window_to`, and `updated_at` are parseable as UTC timestamps
 
 **Example `window_state.json`:**
 
@@ -541,7 +561,24 @@ Each batch file contains:
 }
 ```
 
-In this example, each top-level key represents one `chip_id × metric` combination.
+In this example, `chip_001::t1` has recovered (no recent failures) and uses the base window (`w = 1`), while `chip_001::t2_echo` has had two consecutive upstream failures and will expand to `w = 3` on the next cycle.
+
+**Behavior when config changes between restarts:**
+
+The next collection window is always computed fresh from `now` and the current `empty_count`:
+
+```python
+w = min(empty_count + 1, config.collection.max_expand_windows)
+from_at = now - (config.collection.interval_sec * w)
+```
+
+The stored `last_window_from` and `last_window_to` fields are informational only and are not used to compute the next window. The following cases apply when config values change:
+
+| Changed parameter              | Effect on stored state                            | Startup behavior                                                                                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `interval_sec` changed         | `last_window_from`/`last_window_to` become stale  | Startup succeeds. The new `interval_sec` takes effect from the next collection cycle. Stale window fields are overwritten at next write.                                                                                                                      |
+| `max_expand_windows` increased | `empty_count` remains within the new larger bound | Startup succeeds. Window expansion range widens from the next cycle.                                                                                                                                                                                          |
+| `max_expand_windows` decreased | Stored `empty_count` may exceed `new_max - 1`     | **Startup fails** if any entry has `empty_count > new_max_expand_windows - 1`. Operator must either increase `max_expand_windows` back, or manually edit/delete `window_state.json` to bring all `empty_count` values within the new bound before restarting. |
 
 #### 3.4.6 Startup validation of local spool JSON cache
 
@@ -682,8 +719,9 @@ Operational note:
 #### 4.3.1 Client bootstrap
 
 - The exporter instantiates `qdash.client.QDashClient`
-- If `qdash_client.config_file` is set, the exporter loads `QDashConfig.from_file(section=qdash_client.config_section)`
-- Otherwise, the exporter uses `QDashConfig.from_env()` or the `QDashClient()` default loading behavior
+- If `qdash_client.config_file` is set, the exporter creates the client via `QDashClient.from_profile(profile=qdash_client.config_profile, path=qdash_client.config_file)`
+- If `qdash_client.config_file` is not set, the exporter creates the client via `QDashClient.from_profile(profile=qdash_client.config_profile)`, which reads from the default config file path (`~/.config/qdash/config.ini`)
+- If neither a config file nor a default config file is available, the exporter falls back to `QDashClient.from_env()` to load settings from environment variables
 
 #### 4.3.2 Collection API
 
@@ -719,7 +757,7 @@ Operational note:
 | Error Type from `qdash.client`                                                                                                           | Retry                                       | Collector Behavior                            | Effect on `/metrics`                                    |
 | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------- | ------------------------------------------------------- |
 | Successful response with data                                                                                                            | -                                           | Normalize data and write batch file           | Buffered data becomes visible on next scrape            |
-| Successful response with empty data                                                                                                      | No immediate retry                          | No batch file; increment `empty_count`        | Existing buffered data is still served; otherwise `503` |
+| Successful response with empty data                                                                                                      | No immediate retry                          | No batch file; reset `empty_count` to `0`     | Existing buffered data is still served; otherwise `503` |
 | Any upstream request failure from `qdash.client` (including timeout, `408`, `429`, `5xx`, auth/validation/not-found, or network failure) | Retry up to `collection.retry_max_attempts` | If all attempts fail, increment `empty_count` | Existing buffered data is still served; otherwise `503` |
 
 Every error must be logged for debugging.
@@ -730,6 +768,7 @@ The policy is intentionally simple: treat upstream request failures in the same 
 
 - First, retry up to `collection.retry_max_attempts`.
 - If retries are exhausted, increment `empty_count` and expand the window on the next cycle.
+- If the response is successful but empty (`data_count = 0`), treat it as normal and do not expand the window.
 - Do not treat upstream request failures as immediate exporter-local `500` conditions.
 
 Only exporter-local failures on the pull path (for example, invalid/corrupt local buffer state) are handled as `500`.
