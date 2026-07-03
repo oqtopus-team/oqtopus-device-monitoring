@@ -333,6 +333,8 @@ Chip IDs are discovered dynamically from QDash by the exporter. Every collection
   - Reads local pending batch files only
   - Infers metric name from `batch_id` in filename and skips files for metrics not enabled in current config before opening JSON contents
   - Returns only samples for metrics currently enabled in `targets.qubit_metrics` and `targets.coupling_metrics`
+  - For currently enabled metrics, returns samples for all `chip_id` values present in pending batch files (no chip-level filtering on the pull path)
+  - `activity_status` (`active`/`all`) affects only scheduled collection/discovery from QDash and does not filter `chip_id` values during `/metrics` response generation
   - Pending samples for metrics disabled in current config are excluded from `/metrics` output
   - Does not trigger `qdash.client` or any outbound QDash HTTP request
 - Status code:
