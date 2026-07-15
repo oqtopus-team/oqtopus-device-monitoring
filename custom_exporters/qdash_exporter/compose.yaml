@@ -1,0 +1,26 @@
+services:
+  qdash-exporter:
+    build: .
+    container_name: qdash-exporter
+    ports:
+      - "9104:9104"
+    volumes:
+      # connect config files
+      - ${QDASH_EXPORTER_CONFIG_PATH:-./config/config.yaml}:/config/config.yaml:ro
+      - ${QDASH_EXPORTER_LOGGING_CONFIG_PATH:-./config/logging.yaml}:/config/logging.yaml:ro
+      # connect log directory
+      - ${QDASH_EXPORTER_LOGGING_DIR_PATH:-./logs}:/logs
+      # persistent local spool buffer
+      - ${BUFFER_DIR_PATH:-./data/qdash-buffer}:/data/qdash-buffer
+      # qdash.client connection/authentication config.ini
+      - ${QDASH_CLIENT_CONFIG_FILE}:/config/config.ini:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - NO_PROXY=*
+      - no_proxy=*
+      - EXPORTER_PORT=${EXPORTER_PORT:-9104}
+      - EXPORTER_TIMEZONE=${EXPORTER_TIMEZONE:-UTC}
+      # qdash.client authentication
+      - QDASH_PASSWORD=${QDASH_PASSWORD}
+    restart: unless-stopped

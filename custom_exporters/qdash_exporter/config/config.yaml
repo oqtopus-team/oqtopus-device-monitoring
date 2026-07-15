@@ -1,0 +1,48 @@
+# Basic exporter settings
+exporter:
+  port: 9104
+  timezone: "Asia/Tokyo"
+
+# Background collection settings
+collection:
+  interval_sec: 3600
+  retry_max_attempts: 3
+  max_expand_windows: 24
+  tag: "calibration"
+  chip_discovery_mode: "active"
+
+# Local durable buffer
+buffer:
+  dir_path: "./data/qdash-buffer"
+
+# qdash.client bootstrap
+qdash_client:
+  config_file: ""
+  config_profile: "default"
+
+# Target metrics to collect
+targets:
+  # At least one metric must be configured across qubit_metrics and coupling_metrics.
+  qubit_metrics:
+    - "readout_frequency"
+    - "qubit_frequency"
+    - "anharmonicity"
+    - "t1"
+    - "t1_average"
+    - "t2_echo"
+    - "t2_echo_average"
+    - "t2_star"
+    - "average_readout_fidelity"
+    - "average_gate_fidelity"
+    - "x90_gate_fidelity"
+    - "x180_gate_fidelity"
+    - "maximum_rabi_frequency"
+    - "hpi_amplitude"
+    - "hpi_length"
+    - "one_qubit_gate_coherence_limit"
+  coupling_metrics:
+    - "zx90_gate_fidelity"
+    - "bell_state_fidelity"
+    - "zx90_gate_time"
+    - "two_qubit_gate_coherence_limit"
+    - "static_zz_interaction"
