@@ -4,6 +4,8 @@
 
 This exporter responds to pull requests from `vmagent` by returning calibration metrics that were collected from QDash in advance and persisted in the Local Spool File Buffer. It collects per-qubit and per-coupling metric values through `qdash.client`, stores the normalized results durably inside the exporter, and serves buffered data in Prometheus format which is supported by `vmagent`. The implementation uses Python's `prometheus_client` library to build a custom exporter. This document provides the detailed design specifications for the exporter.
 
+This document is intentionally scoped to exporter-related behavior and does not reproduce the full OpenAPI surface. It references only the endpoints required for collection/validation (`/metrics/config`, `/task-results/timeseries`, and related metric endpoints).
+
 ### 1.1 Key features and design principles
 
 - This exporter is containerized
@@ -269,6 +271,39 @@ targets:
     - "two_qubit_gate_coherence_limit"
     - "static_zz_interaction"
 ```
+
+The default target list above is the complete metric set currently defined in QDash metrics configuration (`/metrics/config` metadata source).
+
+#### 2.3.1.1 Complete default collection target set
+
+Qubit metrics (16):
+
+- `readout_frequency`
+- `qubit_frequency`
+- `anharmonicity`
+- `t1`
+- `t1_average`
+- `t2_echo`
+- `t2_echo_average`
+- `t2_star`
+- `average_readout_fidelity`
+- `average_gate_fidelity`
+- `x90_gate_fidelity`
+- `x180_gate_fidelity`
+- `maximum_rabi_frequency`
+- `hpi_amplitude`
+- `hpi_length`
+- `one_qubit_gate_coherence_limit`
+
+Coupling metrics (5):
+
+- `zx90_gate_fidelity`
+- `bell_state_fidelity`
+- `zx90_gate_time`
+- `two_qubit_gate_coherence_limit`
+- `static_zz_interaction`
+
+Total: 21 metrics.
 
 **Important notes**:
 
@@ -613,23 +648,40 @@ The stored `last_window_from` and `last_window_to` fields are informational only
 
 ### 3.6 Output metrics specification
 
-Metric names are generated from the configured/discovered metric set. The table below is representative and not exhaustive.
+Metric names are generated from the configured/discovered metric set.
+
+Naming rule:
+
+- Qubit metrics: `qdash_qubit_<metric_name>`
+- Coupling metrics: `qdash_coupling_<metric_name>`
 
 For qubit metrics, when QDash returns `error`, the exporter also emits a paired metric with suffix `_error` (for example, `qdash_qubit_t1_error`) using the same labels and timestamp.
 
-| Metric Name                    | Labels                                       | Type  | Description              |
-| ------------------------------ | -------------------------------------------- | ----- | ------------------------ |
-| `qdash_qubit_t1`               | `chip_id="...",qubit_id="...",unit="..."`    | gauge | T1 relaxation time       |
-| `qdash_qubit_t2_echo`          | `chip_id="...",qubit_id="...",unit="..."`    | gauge | T2 echo coherence time   |
-| `qdash_qubit_t2_star`          | `chip_id="...",qubit_id="...",unit="..."`    | gauge | T2\* dephasing time      |
-| `qdash_qubit_frequency`        | `chip_id="...",qubit_id="...",unit="..."`    | gauge | Qubit resonant frequency |
-| `qdash_qubit_anharmonicity`    | `chip_id="...",qubit_id="...",unit="..."`    | gauge | Anharmonicity            |
-| `qdash_qubit_readout_fidelity` | `chip_id="...",qubit_id="...",unit="..."`    | gauge | Average readout fidelity |
-| `qdash_qubit_x90_fidelity`     | `chip_id="...",qubit_id="...",unit="..."`    | gauge | X90 gate fidelity        |
-| `qdash_qubit_x180_fidelity`    | `chip_id="...",qubit_id="...",unit="..."`    | gauge | X180 gate fidelity       |
-| `qdash_coupling_zx90_fidelity` | `chip_id="...",coupling_id="...",unit="..."` | gauge | ZX90 gate fidelity       |
-| `qdash_coupling_bell_fidelity` | `chip_id="...",coupling_id="...",unit="..."` | gauge | Bell state fidelity      |
-| `qdash_coupling_static_zz`     | `chip_id="...",coupling_id="...",unit="..."` | gauge | Static ZZ interaction    |
+Current output metrics for the present exporter configuration:
+
+This list is exhaustive for the metrics currently defined by QDash and collected by this exporter. If QDash adds new metric names later, this section should be extended in the same naming pattern.
+
+- `qdash_qubit_t1` (`chip_id`, `qubit_id`, `unit`; gauge): T1 relaxation time
+- `qdash_qubit_t1_average` (`chip_id`, `qubit_id`, `unit`; gauge): Mean T1 relaxation time
+- `qdash_qubit_t2_echo` (`chip_id`, `qubit_id`, `unit`; gauge): T2 echo coherence time
+- `qdash_qubit_t2_echo_average` (`chip_id`, `qubit_id`, `unit`; gauge): Mean T2 echo coherence time
+- `qdash_qubit_t2_star` (`chip_id`, `qubit_id`, `unit`; gauge): T2\* dephasing time
+- `qdash_qubit_anharmonicity` (`chip_id`, `qubit_id`, `unit`; gauge): Qubit anharmonicity
+- `qdash_qubit_qubit_frequency` (`chip_id`, `qubit_id`, `unit`; gauge): Qubit resonant frequency
+- `qdash_qubit_readout_frequency` (`chip_id`, `qubit_id`, `unit`; gauge): Readout resonator frequency
+- `qdash_qubit_average_readout_fidelity` (`chip_id`, `qubit_id`, `unit`; gauge): Average readout fidelity
+- `qdash_qubit_average_gate_fidelity` (`chip_id`, `qubit_id`, `unit`; gauge): Average single-qubit gate fidelity
+- `qdash_qubit_x90_gate_fidelity` (`chip_id`, `qubit_id`, `unit`; gauge): X90 gate fidelity
+- `qdash_qubit_x180_gate_fidelity` (`chip_id`, `qubit_id`, `unit`; gauge): X180 gate fidelity
+- `qdash_qubit_maximum_rabi_frequency` (`chip_id`, `qubit_id`, `unit`; gauge): Maximum Rabi frequency
+- `qdash_qubit_hpi_amplitude` (`chip_id`, `qubit_id`, `unit`; gauge): Half-pi pulse amplitude
+- `qdash_qubit_hpi_length` (`chip_id`, `qubit_id`, `unit`; gauge): Half-pi pulse duration
+- `qdash_qubit_one_qubit_gate_coherence_limit` (`chip_id`, `qubit_id`, `unit`; gauge): 1Q gate coherence-limit fidelity
+- `qdash_coupling_zx90_gate_fidelity` (`chip_id`, `coupling_id`, `unit`; gauge): ZX90 gate fidelity
+- `qdash_coupling_bell_state_fidelity` (`chip_id`, `coupling_id`, `unit`; gauge): Bell state fidelity
+- `qdash_coupling_zx90_gate_time` (`chip_id`, `coupling_id`, `unit`; gauge): ZX90 gate time
+- `qdash_coupling_two_qubit_gate_coherence_limit` (`chip_id`, `coupling_id`, `unit`; gauge): 2Q gate coherence-limit fidelity
+- `qdash_coupling_static_zz_interaction` (`chip_id`, `coupling_id`, `unit`; gauge): Static ZZ interaction
 
 #### 3.6.1 Timestamp handling
 
@@ -641,13 +693,20 @@ For qubit metrics, when QDash returns `error`, the exporter also emits a paired 
 
 #### Labels of the metrics
 
-The exporter uses a small, fixed label set. The table below summarizes the labels by metric family.
+The exporter uses a small, fixed label set.
 
-| Metric family       | Metric examples                                                                                                                                                                        | Labels                           | Typical values                          |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------- |
-| Qubit metrics       | `qdash_qubit_t1`, `qdash_qubit_t2_echo`, `qdash_qubit_frequency`, `qdash_qubit_anharmonicity`, `qdash_qubit_readout_fidelity`, `qdash_qubit_x90_fidelity`, `qdash_qubit_x180_fidelity` | `chip_id`, `qubit_id`, `unit`    | `chip_001`, `0`, `us`, `MHz`, `1`, `""` |
-| Qubit error metrics | `qdash_qubit_t1_error`, `qdash_qubit_t2_echo_error`                                                                                                                                    | `chip_id`, `qubit_id`, `unit`    | `chip_001`, `0`, `""`                   |
-| Coupling metrics    | `qdash_coupling_zx90_fidelity`, `qdash_coupling_bell_fidelity`, `qdash_coupling_static_zz`                                                                                             | `chip_id`, `coupling_id`, `unit` | `chip_001`, `0-1`, `1-2`, `ns`, `""`    |
+- Qubit metrics:
+  `qdash_qubit_t1`, `qdash_qubit_t2_echo`, `qdash_qubit_qubit_frequency`, `qdash_qubit_anharmonicity`, `qdash_qubit_average_readout_fidelity`, `qdash_qubit_x90_gate_fidelity`, `qdash_qubit_x180_gate_fidelity`
+  Labels: `chip_id`, `qubit_id`, `unit`
+  Typical values: `chip_001`, `0`, `us`, `MHz`, `1`, `""`
+- Qubit error metrics:
+  `qdash_qubit_t1_error`, `qdash_qubit_t2_echo_error`
+  Labels: `chip_id`, `qubit_id`, `unit`
+  Typical values: `chip_001`, `0`, `""`
+- Coupling metrics:
+  `qdash_coupling_zx90_gate_fidelity`, `qdash_coupling_bell_state_fidelity`, `qdash_coupling_static_zz_interaction`
+  Labels: `chip_id`, `coupling_id`, `unit`
+  Typical values: `chip_001`, `0-1`, `1-2`, `ns`, `""`
 
 **Common labels:**
 
