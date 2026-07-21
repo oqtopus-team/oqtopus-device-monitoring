@@ -119,9 +119,13 @@ def setup_logging(exporter_timezone: str) -> None:
 def main() -> None:
     """Serve as the entry point for the QDash Exporter application."""
     # Load configuration and set up logging
-    config = load_config()
-    setup_logging(config.exporter.timezone)
-    logger.info("Validated configuration: %s", config.model_dump())
+    try:
+        config = load_config()
+        setup_logging(config.exporter.timezone)
+        logger.info("Validated configuration: %s", config.model_dump())
+    except Exception:
+        logger.exception("Failed to load or validate configuration.")
+        raise
 
     # Initialize spool buffer and window state cache
     spool = SpoolBuffer(config.buffer.dir_path)

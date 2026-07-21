@@ -16,6 +16,7 @@ from models import (
     infer_metric_from_filename,
     is_valid_batch_filename,
     parse_utc,
+    verify_filename_matches_batch,
     window_state_key,
 )
 
@@ -77,10 +78,10 @@ class SpoolBuffer:
             metric: The metric for which the batch is collected.
 
         Returns:
-            A unique batch_id string in the format:
-            "{collected_at_utc}_{chip_id}_{metric}_{seq}",
-            where seq is an incrementing integer for each unique combination of
-            (collected_at, chip_id, metric).
+            A unique batch_id string in the format
+             "<YYYYMMDDTHHMMSSZ>-<chip_id>-<metric>_<seq>",
+             where seq is an incrementing integer that disambiguates collisions
+             within the (collected_at, chip_id, metric).
 
         """
         seq = 1
@@ -109,6 +110,11 @@ class SpoolBuffer:
             f.flush()
             os.fsync(f.fileno())
         tmp_path.rename(pending_path)
+        dir_fd = os.open(self._pending_dir, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
         logger.info("Wrote batch %s to pending/.", batch.batch_id)
         return pending_path
 
@@ -131,8 +137,8 @@ class SpoolBuffer:
             A Batch object constructed from the JSON data in the file.
 
         Raises:
-            BatchValidationError: If the file cannot be parsed as valid JSON,
-              or does not conform to the expected schema.
+            BatchValidationError: If the file cannot be parsed as JSON,
+              or does not match the expected Batch schema.
 
         """
         path = self._pending_dir / filename
@@ -142,7 +148,9 @@ class SpoolBuffer:
         except json.JSONDecodeError as exc:
             msg = f"cannot parse batch file {filename}: {exc}"
             raise BatchValidationError(msg) from exc
-        return Batch.from_json_dict(data)
+        batch = Batch.from_json_dict(data)
+        verify_filename_matches_batch(filename, batch)
+        return batch
 
     def delete_pending(self, filenames: Sequence[str]) -> None:
         """Delete the specified pending batch files from the spool.
@@ -184,10 +192,19 @@ class SpoolBuffer:
                 continue
 
             try:
-                self.read_batch(filename)
+                batch = self.read_batch(filename)
             except (BatchValidationError, OSError) as exc:
                 msg = f"pending file {filename} failed startup validation: {exc}"
                 raise LocalStateError(msg) from exc
+
+            # Check that the batch's metric matches the inferred metric from filename
+            if batch.metric != metric:
+                msg = (
+                    f"pending file {filename} has a metric {batch.metric!r} that does "
+                    f"not match the enabled metric {metric!r} inferred from its "
+                    f"filename"
+                )
+                raise LocalStateError(msg)
             validated += 1
         logger.info(
             "Startup validation of pending batches completed: validated=%d, skipped=%d",
@@ -200,10 +217,21 @@ class WindowStateStore:
     """Manages the window state file (window_state.json) under the state directory."""
 
     def __init__(self, state_dir: Path, max_expand_windows: int) -> None:
+        self._state_dir = state_dir
         self._state_path = state_dir / "window_state.json"
         self._tmp_path = state_dir / "window_state.json.tmp"
         self._max_expand_windows = max_expand_windows
         self._entries: dict[str, WindowStateEntry] = {}
+
+    @property
+    def entry_count(self) -> int:
+        """Number of window state entries currently held in memory.
+
+        Returns:
+            The count of entries in the window state cache.
+
+        """
+        return len(self._entries)
 
     def load(self) -> None:
         """Load and validate the window state file (window_state.json).
@@ -316,6 +344,9 @@ class WindowStateStore:
         try:
             self._persist()
         except OSError:
+            logger.exception(
+                "Failed to persist window state after updating entry %s.", key
+            )
             if previous is None:
                 del self._entries[key]
             else:
@@ -338,4 +369,9 @@ class WindowStateStore:
             f.flush()
             os.fsync(f.fileno())
         self._tmp_path.rename(self._state_path)
+        dir_fd = os.open(self._state_dir, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
         logger.debug("Persisted window state with %d entries.", len(self._entries))

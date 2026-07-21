@@ -112,6 +112,7 @@ class CollectionService:
         # Run collection for each (chip_id x metric) combination
         combinations = 0
         batches_written = 0
+        states_saved = 0
         failures = 0
         for chip_id in chip_ids:
             for metric in metrics:
@@ -119,7 +120,9 @@ class CollectionService:
                 try:
                     if self._collect_one(chip_id, metric, cycle_now):
                         batches_written += 1
+                    states_saved += 1
                 except Exception:
+                    # Catch any unexpected exception to avoid killing the cycle loop.
                     failures += 1
                     logger.exception(
                         "Unexpected error on chip_id=%r metric=%r; state unchanged.",
@@ -127,6 +130,11 @@ class CollectionService:
                         metric,
                     )
 
+        logger.info(
+            "Window state cache saved: %d entr(ies) updated this cycle, %d total.",
+            states_saved,
+            self._state.entry_count,
+        )
         logger.info(
             "Cycle finished: %d combination(s), %d batch(es) written, %d failure(s).",
             combinations,
@@ -184,6 +192,12 @@ class CollectionService:
                 if len(raw) > 0
                 else CollectionOutcome.SUCCESS_EMPTY
             )
+            logger.debug(
+                "Fetched %d raw record(s) for chip_id=%r metric=%r.",
+                len(raw),
+                chip_id,
+                metric,
+            )
             # Write a batch to the spool if there are valid records
             if records:
                 batch_id = self._spool.next_batch_id(now, chip_id, metric)
@@ -221,25 +235,38 @@ class CollectionService:
         Returns:
             A list of raw timeseries records.
 
+        Raises:
+            UpstreamRequestError: If all retry attempts fail.
+
         """
         max_attempts = 1 + self._config.collection.retry_max_attempts
-        last_exc: UpstreamRequestError | None = None
-        for attempt in range(1, max_attempts + 1):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
-                return self._gateway.fetch_timeseries_records(chip_id, metric, window)
-            except UpstreamRequestError as exc:
-                last_exc = exc
-                logger.warning(
-                    "Attempt %d/%d failed for chip_id=%r metric=%r: %s",
+                records = self._gateway.fetch_timeseries_records(
+                    chip_id, metric, window
+                )
+            except UpstreamRequestError:
+                if attempt >= max_attempts:
+                    raise
+                logger.exception(
+                    "Attempt %d/%d failed for chip_id=%r metric=%r; retrying.",
                     attempt,
                     max_attempts,
                     chip_id,
                     metric,
-                    exc,
                 )
-        # loop always sets last_exc before falling through here
-        assert last_exc is not None  # noqa: S101
-        raise last_exc
+            else:
+                if attempt > 1:
+                    logger.info(
+                        "Fetch recovered on attempt %d/%d for chip_id=%r metric=%r.",
+                        attempt,
+                        max_attempts,
+                        chip_id,
+                        metric,
+                    )
+                return records
 
     def _discover_chip_ids_with_retry(self) -> list[str]:
         """Fetch the list of chip IDs with retry logic.
@@ -247,46 +274,66 @@ class CollectionService:
         Returns:
             A list of chip IDs.
 
+        Raises:
+            UpstreamRequestError: If all retry attempts fail.
+
         """
         max_attempts = 1 + self._config.collection.retry_max_attempts
-        last_exc: UpstreamRequestError | None = None
-        for attempt in range(1, max_attempts + 1):
+        attempt = 0
+        while True:
+            attempt += 1
             try:
-                return self._gateway.discover_chip_ids(
+                chip_ids = self._gateway.discover_chip_ids(
                     self._config.collection.chip_discovery_mode
                 )
-            except UpstreamRequestError as exc:
-                last_exc = exc
-                logger.warning(
-                    "Chip discovery attempt %d/%d failed: %s",
+            except UpstreamRequestError:
+                if attempt >= max_attempts:
+                    raise
+                logger.exception(
+                    "Chip discovery attempt %d/%d failed; retrying.",
                     attempt,
                     max_attempts,
-                    exc,
                 )
-        # loop always sets last_exc before falling through here
-        assert last_exc is not None  # noqa: S101
-        raise last_exc
+            else:
+                if attempt > 1:
+                    logger.info(
+                        "Chip discovery recovered on attempt %d/%d.",
+                        attempt,
+                        max_attempts,
+                    )
+                return chip_ids
 
     def _check_metric_catalog(self) -> None:
         """Check the QDash metric catalog against configured metrics."""
         try:
             qubit_catalog, coupling_catalog = self._gateway.fetch_metric_catalog()
         except UpstreamRequestError:
-            logger.warning(
-                "Failed to fetch metric catalog; skipping validation.", exc_info=True
-            )
+            logger.exception("Failed to fetch metric catalog; skipping validation.")
             return
 
+        missing = 0
         for metric in self._config.targets.qubit_metrics:
             if metric not in qubit_catalog:
+                missing += 1
                 logger.warning(
                     "Configured qubit metric %r missing from QDash catalog.", metric
                 )
         for metric in self._config.targets.coupling_metrics:
             if metric not in coupling_catalog:
+                missing += 1
                 logger.warning(
                     "Configured coupling metric %r missing from QDash catalog.", metric
                 )
+
+        configured = len(self._config.targets.qubit_metrics) + len(
+            self._config.targets.coupling_metrics
+        )
+        logger.info(
+            "Metric catalog validation: %d configured metric(s), %d missing "
+            "from catalog.",
+            configured,
+            missing,
+        )
 
 
 def run_collection_loop(
@@ -307,7 +354,7 @@ def run_collection_loop(
         try:
             service.run_cycle()
         except Exception:
-            # Defensive: catch any unexpected exception to avoid killing the thread.
+            # Catch any unexpected exception to avoid killing the thread.
             logger.exception("Collection cycle failed unexpectedly.")
         elapsed = time.monotonic() - started
         stop_event.wait(timeout=max(0.0, interval_sec - elapsed))

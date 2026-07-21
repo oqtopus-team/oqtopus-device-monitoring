@@ -397,3 +397,32 @@ def infer_metric_from_filename(
         if stem.endswith(f"-{metric}"):
             return metric
     return None
+
+
+def verify_filename_matches_batch(filename: str, batch: Batch) -> None:
+    """Verify that a batch filename is consistent with the Batch object's metadata.
+
+    Args:
+        filename: The pending batch filename.
+        batch: The Batch parsed from the file body.
+
+    Raises:
+        BatchValidationError: If the filename has no valid sequence suffix, or
+          the body metadata does not reconstruct the filename batch_id.
+
+    """
+    stem = filename.removesuffix(".json")
+    match = _TRAILING_SEQ_PATTERN.search(stem)
+    if match is None:
+        msg = f"batch filename {filename!r} has no valid sequence suffix"
+        raise BatchValidationError(msg)
+    seq = int(match.group()[1:])
+
+    expected = build_batch_id(batch.collected_at, batch.chip_id, batch.metric, seq)
+    if batch.batch_id != stem or expected != stem:
+        msg = (
+            f"batch file {filename!r} body metadata is inconsistent with its "
+            f"filename: batch_id={batch.batch_id!r}, chip_id={batch.chip_id!r}, "
+            f"metric={batch.metric!r}, collected_at={batch.collected_at!r}"
+        )
+        raise BatchValidationError(msg)

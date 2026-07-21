@@ -215,10 +215,10 @@ class MetricsRequestHandler(BaseHTTPRequestHandler):
             self._send_plain_text(500, "internal server error")
             return
 
+        self._detail = f"served {family_count} metric(s)"
         if not self._write_response(body):
             return
         self.pull_service.confirm_served(served)
-        logger.info("Served %d metric(s).", family_count)
 
     def _write_response(self, body: bytes) -> bool:
         try:
@@ -232,7 +232,7 @@ class MetricsRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             self.wfile.flush()
         except OSError:
-            logger.warning("Response write failed; keeping batch.", exc_info=True)
+            logger.exception("Response write failed; keeping batch.")
             return False
         return True
 

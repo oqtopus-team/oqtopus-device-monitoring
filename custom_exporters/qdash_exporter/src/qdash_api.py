@@ -63,12 +63,10 @@ class QDashGateway:
                     "Created QDash client from default config file (profile=%s).",
                     cfg.config_profile,
                 )
-            except QDashConfigError as exc:
-                logger.warning(
-                    "No usable default config.ini profile (%s); using from_env(): %s",
+            except QDashConfigError:
+                logger.exception(
+                    "No usable default config.ini profile (%s); using from_env().",
                     cfg.config_profile,
-                    exc,
-                    exc_info=exc,
                 )
                 # Fallback to creating a client from environment variables
                 client = QDashClient.from_env()
@@ -181,48 +179,53 @@ def normalize_records(  # noqa: C901
     from_ms = to_epoch_ms(window.from_at)
     to_ms = to_epoch_ms(window.to_at)
     records: list[NormalizedRecord] = []
+    skipped = 0
 
     for raw in raw_records:
         calibrated_at_raw = raw.get("calibrated_at")
         if not isinstance(calibrated_at_raw, str):
-            logger.warning(
-                "Skipping record with missing/invalid calibrated_at: %r", raw
-            )
+            logger.debug("Skipping record with missing/invalid calibrated_at: %r", raw)
+            skipped += 1
             continue
         try:
             calibrated_at = datetime.fromisoformat(calibrated_at_raw)
         except ValueError:
-            logger.warning("Skipping record with unparseable calibrated_at: %r", raw)
+            logger.debug("Skipping record with unparseable calibrated_at: %r", raw)
+            skipped += 1
             continue
         if calibrated_at.tzinfo is None:
             calibrated_at = calibrated_at.replace(tzinfo=UTC)
         timestamp_ms = to_epoch_ms(calibrated_at)
 
         if not from_ms <= timestamp_ms < to_ms:
-            logger.warning(
+            logger.debug(
                 "Skipping record with timestamp outside the request window: %r", raw
             )
+            skipped += 1
             continue
 
         value_raw = raw.get("value")
         if not is_finite_number(value_raw):
-            logger.warning(
+            logger.debug(
                 "Skipping record with a null/non-numeric/NaN/Infinity value: %r", raw
             )
+            skipped += 1
             continue
 
         value_type = raw.get("value_type")
         if value_type is not None and value_type not in NUMERIC_VALUE_TYPES:
-            logger.warning(
+            logger.debug(
                 "Skipping record with a non-numeric-compatible value_type %r: %r",
                 value_type,
                 raw,
             )
+            skipped += 1
             continue
 
         qid_role = raw.get("qid_role")
         if not isinstance(qid_role, str) or not qid_role:
-            logger.warning("Skipping record with a missing or empty qid_role: %r", raw)
+            logger.debug("Skipping record with a missing or empty qid_role: %r", raw)
+            skipped += 1
             continue
 
         unit_raw = raw.get("unit")
@@ -232,11 +235,9 @@ def normalize_records(  # noqa: C901
         if kind == MetricKind.QUBIT and "error" in raw and raw["error"] is not None:
             error_raw = raw["error"]
             if is_finite_number(error_raw):
-                error_value = float(error_raw)
-                if error_value:
-                    error = error_value
+                error = float(error_raw)
             else:
-                logger.warning(
+                logger.debug(
                     "Discarding non-numeric error value, keeping base record: %r", raw
                 )
 
@@ -250,5 +251,10 @@ def normalize_records(  # noqa: C901
                 error=error,
             )
         )
-
+    if skipped:
+        logger.warning(
+            "Skipped %d of %d record(s) during normalization.",
+            skipped,
+            len(raw_records),
+        )
     return records
