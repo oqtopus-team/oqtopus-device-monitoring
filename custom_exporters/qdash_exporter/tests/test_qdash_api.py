@@ -45,6 +45,24 @@ class TestFromConfig:
         with pytest.raises(QDashConfigError):
             QDashGateway.from_config(cfg, tag="calibration")
 
+    def test_from_config_explicit_path_success_sets_retry_max_attempts_one(
+        self, mocker: MockerFixture
+    ) -> None:
+        client = mocker.MagicMock()
+        from_profile = mocker.patch.object(
+            qdash_api.QDashClient, "from_profile", return_value=client
+        )
+        cfg = QDashClientConfig(
+            config_file="/etc/qdash/config.ini", config_profile="prod"
+        )
+
+        QDashGateway.from_config(cfg, tag="calibration")
+
+        from_profile.assert_called_once_with(
+            profile="prod", path="/etc/qdash/config.ini"
+        )
+        assert client.config.retry.max_attempts == 1
+
     def test_from_config_default_success_sets_retry_max_attempts_one(
         self, mocker: MockerFixture
     ) -> None:
@@ -271,12 +289,12 @@ class TestNormalizeRecords:
 
         assert len(records) == 1
 
-    def test_normalize_error_zero_becomes_none(self) -> None:
+    def test_normalize_error_zero_is_kept(self) -> None:
         raw = [valid_raw_record(error=0)]
 
         records = normalize_records(raw, MetricKind.QUBIT, DEFAULT_WINDOW)
 
-        assert records[0].error is None
+        assert records[0].error == pytest.approx(0.0)
 
     def test_normalize_error_non_numeric_keeps_base_record(self) -> None:
         raw = [valid_raw_record(error="oops")]

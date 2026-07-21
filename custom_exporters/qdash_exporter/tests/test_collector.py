@@ -22,6 +22,9 @@ if TYPE_CHECKING:
 
 INTERVAL = 3600
 
+# Fail-safe guard: never let the loop run forever in CI
+MAX_LOOP_ITERATIONS = 5
+
 
 def _service(
     app_config: AppConfig,
@@ -150,9 +153,53 @@ class TestFetchWithRetry:
 
         assert len(gateway.fetch_calls) == 4
 
+    def test_fetch_recovers_after_transient_failure(
+        self, app_config: AppConfig, spool: SpoolBuffer, state_store: WindowStateStore
+    ) -> None:
+        record = valid_raw_record()
+        gateway = FakeGateway(
+            fetch_script=[UpstreamRequestError("down"), [record]],
+        )
+        service = _service(app_config, spool, state_store, gateway)
+
+        result = service._fetch_with_retry("chip_001", "t1", window_of(1))
+
+        assert result == [record]
+        assert len(gateway.fetch_calls) == 2
+
+
+class TestDiscoverChipIdsWithRetry:
+    """Test suite for CollectionService._discover_chip_ids_with_retry method."""
+
+    def test_discover_chip_ids_recovers_after_transient_failure(
+        self, app_config: AppConfig, spool: SpoolBuffer, state_store: WindowStateStore
+    ) -> None:
+        gateway = FakeGateway(
+            chips_script=[UpstreamRequestError("down"), ["chip_001"]],
+        )
+        service = _service(app_config, spool, state_store, gateway)
+
+        result = service._discover_chip_ids_with_retry()
+
+        assert result == ["chip_001"]
+        assert gateway.discover_calls == 2
+
 
 class TestRunCycle:
     """Test suite for CollectionService.run_cycle method."""
+
+    def test_run_cycle_writes_batch_for_each_combination(
+        self, app_config: AppConfig, spool: SpoolBuffer, state_store: WindowStateStore
+    ) -> None:
+        gateway = FakeGateway(
+            chips=["chip_001"],
+            fetch_result=[valid_raw_record()],
+        )
+        service = _service(app_config, spool, state_store, gateway)
+
+        service.run_cycle()
+
+        assert len(spool.list_pending_filenames()) == 3
 
     def test_run_cycle_continues_after_combination_error(
         self, app_config: AppConfig, spool: SpoolBuffer, state_store: WindowStateStore
@@ -203,6 +250,10 @@ class TestRunCollectionLoop:
         class OneShotService:
             def run_cycle(self) -> None:
                 calls.append(1)
+                if len(calls) >= MAX_LOOP_ITERATIONS:
+                    # Fail-safe guard: never let the loop run forever in CI
+                    stop_event.set()
+                    return
                 stop_event.set()
 
         run_collection_loop(OneShotService(), 0, stop_event)  # type: ignore[arg-type]
@@ -216,6 +267,10 @@ class TestRunCollectionLoop:
         class FailingService:
             def run_cycle(self) -> None:
                 calls.append(1)
+                if len(calls) >= MAX_LOOP_ITERATIONS:
+                    # Fail-safe guard: never let the loop run forever in CI
+                    stop_event.set()
+                    return
                 stop_event.set()
                 msg = "boom"
                 raise RuntimeError(msg)

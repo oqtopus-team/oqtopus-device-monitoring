@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from config import ENV_OVERRIDES, AppConfig, load_config
-from models import ConfigError
+from config import ENV_OVERRIDES, AppConfig, TargetsConfig, load_config
+from models import ConfigError, MetricKind
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -54,6 +54,18 @@ class TestLoadConfig:
         with pytest.raises(ConfigError):
             load_config()
 
+    def test_load_config_empty_buffer_dir_path_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _use_config(
+            tmp_path,
+            monkeypatch,
+            'buffer:\n  dir_path: ""\ntargets:\n  qubit_metrics: [t1]\n',
+        )
+
+        with pytest.raises(ConfigError):
+            load_config()
+
     def test_load_config_no_metrics_raises(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -80,6 +92,21 @@ class TestLoadConfig:
         config = load_config()
 
         assert config.targets.qubit_metrics == ("t1", "t2_echo")
+
+    def test_load_config_null_metric_list_coerced_to_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _use_config(
+            tmp_path,
+            monkeypatch,
+            "buffer:\n  dir_path: /tmp/buffer\n"
+            "targets:\n  qubit_metrics:\n  coupling_metrics: [zx90_gate_fidelity]\n",
+        )
+
+        config = load_config()
+
+        assert config.targets.qubit_metrics == ()
+        assert config.targets.coupling_metrics == ("zx90_gate_fidelity",)
 
     def test_load_config_port_out_of_range_raises(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -154,6 +181,16 @@ class TestLoadConfig:
         with pytest.raises(ConfigError):
             load_config()
 
+    def test_load_config_missing_file_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(
+            "QDASH_EXPORTER_CONFIG_PATH", str(tmp_path / "does-not-exist.yaml")
+        )
+
+        with pytest.raises(ConfigError):
+            load_config()
+
     def test_load_config_invalid_yaml_raises(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -206,3 +243,32 @@ class TestEnvOverrideDefinitions:
         names = [env_name for env_name, _path in ENV_OVERRIDES]
 
         assert len(names) == len(set(names))
+
+
+class TestTargetsConfigMethods:
+    """Test suite for TargetsConfig helper methods."""
+
+    def test_enabled_metrics_unions_qubit_and_coupling(self) -> None:
+        targets = TargetsConfig(qubit_metrics=("t1",), coupling_metrics=("zx90",))
+
+        assert targets.enabled_metrics() == frozenset({"t1", "zx90"})
+
+    @pytest.mark.parametrize(
+        ("metric", "expected"),
+        [
+            ("t1", MetricKind.QUBIT),
+            ("zx90", MetricKind.COUPLING),
+        ],
+    )
+    def test_kind_of_classifies_enabled_metric(
+        self, metric: str, expected: MetricKind
+    ) -> None:
+        targets = TargetsConfig(qubit_metrics=("t1",), coupling_metrics=("zx90",))
+
+        assert targets.kind_of(metric) is expected
+
+    def test_kind_of_unknown_metric_raises_key_error(self) -> None:
+        targets = TargetsConfig(qubit_metrics=("t1",))
+
+        with pytest.raises(KeyError):
+            targets.kind_of("unknown")

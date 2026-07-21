@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,8 +18,10 @@ from models import (
     is_valid_batch_filename,
     parse_utc,
     to_epoch_ms,
+    verify_filename_matches_batch,
     window_state_key,
 )
+from tests.conftest import make_batch
 
 
 def _valid_batch_dict() -> dict[str, Any]:
@@ -169,6 +172,28 @@ class TestInferMetricFromFilename:
         assert metric == "t1"
 
 
+class TestVerifyFilenameMatchesBatch:
+    """Test suite for verify_filename_matches_batch function."""
+
+    def test_verify_filename_matches_batch_metric_mismatch_raises(self) -> None:
+        with pytest.raises(BatchValidationError, match="inconsistent with its"):
+            verify_filename_matches_batch(
+                "20260611T010000Z-chip_001-t1_1.json", make_batch(metric="t2")
+            )
+
+    def test_verify_filename_matches_batch_id_field_mismatch_raises(self) -> None:
+        batch = replace(make_batch(), batch_id="20260611T010000Z-chip_001-t1_9")
+
+        with pytest.raises(BatchValidationError, match="inconsistent with its"):
+            verify_filename_matches_batch("20260611T010000Z-chip_001-t1_1.json", batch)
+
+    def test_verify_filename_matches_batch_without_seq_suffix_raises(self) -> None:
+        with pytest.raises(BatchValidationError, match="no valid sequence suffix"):
+            verify_filename_matches_batch(
+                "20260611T010000Z-chip_001-t1_x.json", make_batch()
+            )
+
+
 class TestWindowStateKey:
     """Test suite for window_state_key function."""
 
@@ -193,10 +218,37 @@ class TestBatchSerialization:
         assert "coupling_id" not in record
 
     @pytest.mark.parametrize(
+        "record",
+        [
+            {"qubit_id": "0", "value": 45.2, "unit": "us", "error": 0.8},
+            {"coupling_id": "0-1", "value": 0.99, "unit": ""},
+        ],
+    )
+    def test_batch_round_trip_serializes_optional_fields(
+        self, record: dict[str, Any]
+    ) -> None:
+        from_ms = to_epoch_ms(parse_utc("2026-06-11T00:00:00Z"))
+        data = _valid_batch_dict()
+        data["records"] = [{"timestamp_ms": from_ms, **record}]
+
+        source = Batch.from_json_dict(data)
+
+        assert Batch.from_json_dict(source.to_json_dict()) == source
+
+    @pytest.mark.parametrize(
         "data",
         [
             _without("batch_id"),
             _mutate(collected_at=123),
+            _mutate(collected_at="2026-06-11 01:00:00"),
+            _mutate(chip_id=123),
+            _mutate(metric=123),
+            _mutate(records="not-a-list"),
+            _mutate(records=[]),
+            _mutate(records=[123]),
+            _mutate(window="not-a-dict"),
+            _mutate(window={"from": 1, "to": 2}),
+            _mutate(window={"from": "oops", "to": "2026-06-11T01:00:00Z"}),
             _swapped_window(),
             _both_ids(),
             _mutate_record(qubit_id=None),
@@ -212,3 +264,7 @@ class TestBatchSerialization:
     ) -> None:
         with pytest.raises(BatchValidationError):
             Batch.from_json_dict(copy.deepcopy(data))
+
+    def test_batch_from_json_dict_non_object_raises(self) -> None:
+        with pytest.raises(BatchValidationError, match="must be a JSON object"):
+            Batch.from_json_dict(["not", "a", "dict"])  # type: ignore[arg-type]

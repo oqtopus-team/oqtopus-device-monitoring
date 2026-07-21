@@ -100,11 +100,13 @@ class FakeGateway:
         self,
         *,
         chips: list[str] | Exception | None = None,
+        chips_script: list[list[str] | Exception] | None = None,
         catalog: tuple[frozenset[str], frozenset[str]] | Exception | None = None,
         fetch_result: list[dict[str, Any]] | Exception | None = None,
         fetch_script: list[list[dict[str, Any]] | Exception] | None = None,
     ) -> None:
         self._chips = chips if chips is not None else []
+        self._chips_script = chips_script
         self._catalog = catalog
         self._fetch_result = fetch_result if fetch_result is not None else []
         self._fetch_script = fetch_script
@@ -122,6 +124,11 @@ class FakeGateway:
 
     def discover_chip_ids(self, mode: str) -> list[str]:  # noqa: ARG002
         self.discover_calls += 1
+        if self._chips_script:
+            item = self._chips_script.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return list(item)
         if isinstance(self._chips, Exception):
             raise self._chips
         return list(self._chips)
