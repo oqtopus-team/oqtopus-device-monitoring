@@ -8,7 +8,7 @@ collection:
   interval_sec: 3600
   retry_max_attempts: 3
   max_expand_windows: 24
-  tag: "calibration"
+  tag: ""
   chip_discovery_mode: "active"
 
 # Local durable buffer

@@ -13,7 +13,7 @@ services:
       # persistent local spool buffer
       - ${BUFFER_DIR_PATH:-./data/qdash-buffer}:/data/qdash-buffer
       # qdash.client connection/authentication config.ini
-      - ${QDASH_CLIENT_CONFIG_FILE}:/config/config.ini:ro
+      - ${QDASH_CLIENT_CONFIG_FILE:-""}:/config/config.ini:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
