@@ -171,6 +171,17 @@ class TestWindowStateStore:
             ),
             (
                 '{"chip_001::t1": {"empty_count": 0, '
+                '"last_window_to": "2026-06-11T01:00:00Z", '
+                '"updated_at": "2026-06-11T01:00:00Z"}}'
+            ),
+            (
+                '{"chip_001::t1": {"empty_count": 0, '
+                '"last_window_from": 20260611, '
+                '"last_window_to": "2026-06-11T01:00:00Z", '
+                '"updated_at": "2026-06-11T01:00:00Z"}}'
+            ),
+            (
+                '{"chip_001::t1": {"empty_count": 0, '
                 '"last_window_from": "2026-06-11T01:00:00Z", '
                 '"last_window_to": "2026-06-11T00:00:00Z", '
                 '"updated_at": "2026-06-11T01:00:00Z"}}'

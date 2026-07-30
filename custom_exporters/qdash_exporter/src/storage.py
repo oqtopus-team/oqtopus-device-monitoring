@@ -279,13 +279,23 @@ class WindowStateStore:
             msg = f"entry {key!r}: empty_count {empty_count} not in [0, {valid_max}]"
             raise LocalStateError(msg)
 
-        try:
-            last_window_from = parse_utc(value.get("last_window_from"))  # type: ignore[arg-type]
-            last_window_to = parse_utc(value.get("last_window_to"))  # type: ignore[arg-type]
-            updated_at = parse_utc(value.get("updated_at"))  # type: ignore[arg-type]
-        except (ValueError, TypeError) as exc:
-            msg = f"window state entry {key!r} has an invalid timestamp: {exc}"
-            raise LocalStateError(msg) from exc
+        timestamps: dict[str, datetime] = {}
+        for field in ("last_window_from", "last_window_to", "updated_at"):
+            raw_value = value.get(field)
+            if not isinstance(raw_value, str):
+                msg = (
+                    f"window state entry {key!r} has a missing or non-string {field!r}"
+                )
+                raise LocalStateError(msg)
+            try:
+                timestamps[field] = parse_utc(raw_value)
+            except ValueError as exc:
+                msg = f"window state entry {key!r} has an invalid {field!r}: {exc}"
+                raise LocalStateError(msg) from exc
+
+        last_window_from = timestamps["last_window_from"]
+        last_window_to = timestamps["last_window_to"]
+        updated_at = timestamps["updated_at"]
 
         if not last_window_from < last_window_to:
             msg = f"window state entry {key!r}: 'last_window_from' must precede 'to'"
