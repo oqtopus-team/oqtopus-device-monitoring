@@ -15,8 +15,6 @@ formatters:
       - lineno
       - message
       - exc_info
-      - exc_text
-      - stack_info
 
 handlers:
   console:

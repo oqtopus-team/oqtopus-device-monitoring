@@ -182,19 +182,19 @@ def _parse_window(data: object) -> Window:
     return Window(from_at=from_at, to_at=to_at)
 
 
-def _parse_record(data: object, window: Window) -> NormalizedRecord:
+def _parse_record(index: int, data: object, window: Window) -> NormalizedRecord:
     if not isinstance(data, dict):
-        msg = f"record must be an object: {data!r}"
+        msg = f"record[{index}] must be an object"
         raise BatchValidationError(msg)
 
     timestamp_ms = data.get("timestamp_ms")
     if isinstance(timestamp_ms, bool) or not isinstance(timestamp_ms, int):
-        msg = f"'timestamp_ms' must be an int: {data!r}"
+        msg = f"record[{index}] 'timestamp_ms' must be an int"
         raise BatchValidationError(msg)
 
     value = data.get("value")
     if not is_finite_number(value):
-        msg = f"'value' must be a finite number: {data!r}"
+        msg = f"record[{index}] 'value' must be a finite number: {value!r}"
         raise BatchValidationError(msg)
 
     qubit_id = data.get("qubit_id")
@@ -202,19 +202,19 @@ def _parse_record(data: object, window: Window) -> NormalizedRecord:
     has_qubit = isinstance(qubit_id, str)
     has_coupling = isinstance(coupling_id, str)
     if has_qubit == has_coupling:
-        msg = f"record must have exactly one of 'qubit_id'/'coupling_id': {data!r}"
+        msg = f"record[{index}] must have exactly one of 'qubit_id'/'coupling_id'"
         raise BatchValidationError(msg)
 
     unit = data.get("unit")
     if not isinstance(unit, str):
-        msg = f"'unit' is missing or not a string: {data!r}"
+        msg = f"record[{index}] 'unit' is missing or not a string"
         raise BatchValidationError(msg)
 
     error: float | None = None
     if "error" in data:
         error_raw = data["error"]
         if not is_finite_number(error_raw):
-            msg = f"'error' must be a finite number: {data!r}"
+            msg = f"record[{index}] 'error' must be a finite number: {error_raw!r}"
             raise BatchValidationError(msg)
         error = float(error_raw)  # type: ignore[arg-type]
 
@@ -222,7 +222,10 @@ def _parse_record(data: object, window: Window) -> NormalizedRecord:
     to_ms = to_epoch_ms(window.to_at)
     if not from_ms <= timestamp_ms < to_ms:
         window_bounds = f"[{from_ms}, {to_ms})"
-        msg = f"'timestamp_ms' {timestamp_ms} outside window {window_bounds}: {data!r}"
+        msg = (
+            f"record[{index}] 'timestamp_ms' outside window "
+            f"{window_bounds}: {timestamp_ms}"
+        )
         raise BatchValidationError(msg)
 
     return NormalizedRecord(
@@ -277,17 +280,17 @@ class Batch:
 
         """
         if not isinstance(data, dict):
-            msg = f"batch data must be a JSON object: {data!r}"
+            msg = "batch data must be a JSON object"
             raise BatchValidationError(msg)
 
         batch_id = data.get("batch_id")
         if not isinstance(batch_id, str):
-            msg = f"'batch_id' is missing or not a string: {data!r}"
+            msg = "'batch_id' is missing or not a string"
             raise BatchValidationError(msg)
 
         collected_at_raw = data.get("collected_at")
         if not isinstance(collected_at_raw, str):
-            msg = f"'collected_at' is missing or not a string: {data!r}"
+            msg = "'collected_at' is missing or not a string"
             raise BatchValidationError(msg)
         try:
             collected_at = parse_utc(collected_at_raw)
@@ -299,20 +302,20 @@ class Batch:
 
         chip_id = data.get("chip_id")
         if not isinstance(chip_id, str):
-            msg = f"'chip_id' is missing or not a string: {data!r}"
+            msg = "'chip_id' is missing or not a string"
             raise BatchValidationError(msg)
 
         metric = data.get("metric")
         if not isinstance(metric, str):
-            msg = f"'metric' is missing or not a string: {data!r}"
+            msg = "'metric' is missing or not a string"
             raise BatchValidationError(msg)
 
         records_raw = data.get("records")
         if not isinstance(records_raw, list) or not records_raw:
-            msg = f"'records' must be a non-empty list: {data!r}"
+            msg = "'records' must be a non-empty list"
             raise BatchValidationError(msg)
 
-        records = tuple(_parse_record(r, window) for r in records_raw)
+        records = tuple(_parse_record(i, r, window) for i, r in enumerate(records_raw))
 
         return cls(
             batch_id=batch_id,
