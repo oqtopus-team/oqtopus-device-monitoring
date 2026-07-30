@@ -127,15 +127,23 @@ def main() -> None:
         logger.exception("Failed to load or validate configuration.")
         raise
 
-    # Initialize spool buffer and window state cache
-    spool = SpoolBuffer(config.buffer.dir_path)
-    state = WindowStateStore(spool.state_dir, config.collection.max_expand_windows)
-    spool.ensure_layout()
-    state.load()
-    spool.validate_pending_at_startup(config.targets.enabled_metrics())
+    # Initialize the local spool file buffer
+    try:
+        spool = SpoolBuffer(config.buffer.dir_path)
+        state = WindowStateStore(spool.state_dir, config.collection.max_expand_windows)
+        spool.ensure_layout()
+        state.load()
+        spool.validate_pending_at_startup(config.targets.enabled_metrics())
+    except Exception:
+        logger.exception("Failed to initialize the local spool file buffer.")
+        raise
 
     # Bootstrap the QDash client with provided configurations
-    gateway = QDashGateway.from_config(config.qdash_client, config.collection.tag)
+    try:
+        gateway = QDashGateway.from_config(config.qdash_client, config.collection.tag)
+    except Exception:
+        logger.exception("Failed to initialize QDash client.")
+        raise
 
     # Start the collection service in a separate thread
     service = CollectionService(config, gateway, spool, state)
