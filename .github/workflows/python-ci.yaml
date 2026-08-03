@@ -21,6 +21,7 @@ jobs:
           - custom_exporters/quel1_metrics_exporter
           - custom_exporters/quel1_se_metrics_exporter
           - custom_exporters/cryo_metrics_exporter
+          - custom_exporters/qdash_exporter
           - api_server
 
     defaults:
@@ -83,6 +84,7 @@ jobs:
           - custom_exporters/quel1_metrics_exporter
           - custom_exporters/quel1_se_metrics_exporter
           - custom_exporters/cryo_metrics_exporter
+          - custom_exporters/qdash_exporter
           - api_server
           - grafana-and-loki
           - victoriametrics-cluster
