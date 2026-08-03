@@ -15,10 +15,12 @@ collection:
 buffer:
   dir_path: "./data/qdash-buffer"
 
-# qdash.client bootstrap
-qdash_client:
-  config_file: ""
-  config_profile: "default"
+# qdash.client connection/authentication settings.
+# Leave this section unchanged and commented out when running qdash_exporter in a Docker container.
+# Uncomment and configure this section only when running qdash_exporter locally via Python.
+# qdash_client:
+#   config_file: ""
+#   config_profile: "default"
 
 # Target metrics to collect
 targets:

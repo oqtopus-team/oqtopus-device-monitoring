@@ -46,6 +46,8 @@ The exporter loads configuration from `QDASH_EXPORTER_CONFIG_PATH` (default `./c
 
 ### QDash Client Settings
 
+Used only for local Python execution. In Docker deployments, `qdash.client` settings are provided through the mounted [`config/config.ini`](config/config.ini) file.
+
 - `qdash_client.config_file`: Path to the `qdash.client` config file.
 - `qdash_client.config_profile`: Profile name within that config file (default "default").
 

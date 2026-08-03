@@ -13,7 +13,7 @@ services:
       # persistent local spool buffer
       - ${BUFFER_DIR_PATH:-./data/qdash-buffer}:/data/qdash-buffer
       # qdash.client connection/authentication config.ini
-      - ${QDASH_CLIENT_CONFIG_FILE:-""}:/config/config.ini:ro
+      - ${QDASH_CLIENT_CONFIG_FILE:-./config/config.ini}:/home/appuser/.config/qdash/config.ini:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -21,6 +21,8 @@ services:
       - no_proxy=*
       - EXPORTER_PORT=${EXPORTER_PORT:-9104}
       - EXPORTER_TIMEZONE=${EXPORTER_TIMEZONE:-UTC}
+      - QDASH_CLIENT_CONFIG_FILE=${QDASH_CLIENT_CONFIG_FILE:-}
+      - QDASH_CLIENT_CONFIG_PROFILE=${QDASH_CLIENT_CONFIG_PROFILE:-default}
       # qdash.client authentication
       - QDASH_PASSWORD=${QDASH_PASSWORD}
     restart: unless-stopped
