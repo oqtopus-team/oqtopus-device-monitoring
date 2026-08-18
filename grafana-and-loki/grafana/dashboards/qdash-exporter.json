@@ -1,0 +1,1921 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 4,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 6,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 200,
+              "min": 25,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 40
+          },
+          "id": 7,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_t1{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_t1",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_t1",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 8,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 200,
+              "min": 25,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 41
+          },
+          "id": 9,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_t1_average{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_t1_average",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_t1_average",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "id": 10,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 400,
+              "min": 50,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 42
+          },
+          "id": 11,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_t2_echo{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_t2_echo",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_t2_echo",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 12,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 400,
+              "min": 50,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 43
+          },
+          "id": 13,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_t2_echo_average{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_t2_echo_average",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_t2_echo_average",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 14,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 100,
+              "min": 15,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 44
+          },
+          "id": 15,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_t2_star{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_t2_star",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_t2_star",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "id": 16,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": -200,
+              "min": -500,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 45
+          },
+          "id": 17,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_anharmonicity{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_anharmonicity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_anharmonicity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 18,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 6,
+              "min": 4,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 46
+          },
+          "id": 19,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_qubit_frequency{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_qubit_frequency",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_qubit_frequency",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "id": 20,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 10,
+              "min": 6,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 47
+          },
+          "id": 21,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_readout_frequency{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_readout_frequency",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_readout_frequency",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 22,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 0.999,
+              "min": 0.9,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 48
+          },
+          "id": 23,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_average_readout_fidelity{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_average_readout_fidelity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_average_readout_fidelity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 24,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 0.9999,
+              "min": 0.9,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 49
+          },
+          "id": 25,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_average_gate_fidelity{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_average_gate_fidelity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_average_gate_fidelity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 26,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 0.9999,
+              "min": 0.9,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 50
+          },
+          "id": 27,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_x90_gate_fidelity{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_x90_gate_fidelity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_x90_gate_fidelity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 11
+      },
+      "id": 28,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 0.9999,
+              "min": 0.9,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 51
+          },
+          "id": 29,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_x180_gate_fidelity{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_x180_gate_fidelity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_x180_gate_fidelity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 30,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 52
+          },
+          "id": 31,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_maximum_rabi_frequency{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_maximum_rabi_frequency",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_maximum_rabi_frequency",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 32,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 53
+          },
+          "id": 33,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_hpi_amplitude{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_hpi_amplitude",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_hpi_amplitude",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 34,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 54
+          },
+          "id": 35,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_hpi_length{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_hpi_length",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_hpi_length",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
+      "id": 36,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 55
+          },
+          "id": 37,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_qubit_one_qubit_gate_coherence_limit{chip_id=~\"$chip_id\",coupling_id=\"\",qubit_id=~\"${query_group:pipe}\"}[30d]),\"qubit_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{qubit_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "qubit_one_qubit_gate_coherence_limit",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "qubit_one_qubit_gate_coherence_limit",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 38,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 0.999,
+              "min": 0.9,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 56
+          },
+          "id": 39,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_coupling_zx90_gate_fidelity{chip_id=~\"$chip_id\",coupling_id=~\"${coupling_group:pipe}\",qubit_id=\"\"}[30d]),\"coupling_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{coupling_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "coupling_zx90_gate_fidelity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "coupling_zx90_gate_fidelity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 40,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "max": 0.999,
+              "min": 0.8,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": []
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 57
+          },
+          "id": 41,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_coupling_bell_state_fidelity{chip_id=~\"$chip_id\",coupling_id=~\"${coupling_group:pipe}\",qubit_id=\"\"}[30d]),\"coupling_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{coupling_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "coupling_bell_state_fidelity",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "coupling_bell_state_fidelity",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 42,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 58
+          },
+          "id": 43,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_coupling_zx90_gate_time{chip_id=~\"$chip_id\",coupling_id=~\"${coupling_group:pipe}\",qubit_id=\"\"}[30d]),\"coupling_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{coupling_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "coupling_zx90_gate_time",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "coupling_zx90_gate_time",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 44,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 59
+          },
+          "id": 45,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_coupling_two_qubit_gate_coherence_limit{chip_id=~\"$chip_id\",coupling_id=~\"${coupling_group:pipe}\",qubit_id=\"\"}[30d]),\"coupling_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{coupling_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "coupling_two_qubit_gate_coherence_limit",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "coupling_two_qubit_gate_coherence_limit",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 46,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "vmcluster"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "continuous-YlBl"
+              },
+              "custom": {
+                "axisPlacement": "auto",
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 60
+          },
+          "id": 47,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": true,
+            "rowHeight": 1,
+            "showValue": "never",
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.3.0-18481575143",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "vmcluster"
+              },
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sort_by_label_numeric(last_over_time(qdash_coupling_static_zz_interaction{chip_id=~\"$chip_id\",coupling_id=~\"${coupling_group:pipe}\",qubit_id=\"\"}[30d]),\"coupling_id\")",
+              "instant": false,
+              "interval": "",
+              "legendFormat": "{{coupling_id}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "coupling_static_zz_interaction",
+          "type": "state-timeline"
+        }
+      ],
+      "title": "coupling_static_zz_interaction",
+      "type": "row"
+    }
+  ],
+  "preload": false,
+  "schemaVersion": 42,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        },
+        "description": "複数指定する場合は 1|2|3 のように | (縦線) で区切ってください。\n正規表現も入力可能です。",
+        "name": "query_group",
+        "options": [
+          {
+            "selected": true,
+            "text": ".*",
+            "value": ".*"
+          }
+        ],
+        "query": ".*",
+        "type": "textbox"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": ["$__all"]
+        },
+        "definition": "label_values(chip_id)",
+        "includeAll": true,
+        "multi": true,
+        "name": "chip_id",
+        "options": [],
+        "query": {
+          "qryType": 5,
+          "query": "label_values(chip_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": ".*",
+          "value": ".*"
+        },
+        "name": "coupling_group",
+        "options": [
+          {
+            "selected": true,
+            "text": ".*",
+            "value": ".*"
+          }
+        ],
+        "query": ".*",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Qdash-exporter dashboard",
+  "uid": "ad8wqgh1",
+  "version": 8
+}
