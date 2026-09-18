@@ -39,5 +39,5 @@ policies:
       - alertname
     group_wait: 0s
     group_interval: 1s
-    repeat_interval: 4h
+    repeat_interval: 1w
     routes: []

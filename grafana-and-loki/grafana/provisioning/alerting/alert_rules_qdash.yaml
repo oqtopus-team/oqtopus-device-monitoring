@@ -1,0 +1,714 @@
+# Alert rules for QDash calibration metrics.
+#
+# Covers the qdash_qubit_* / qdash_coupling_* series exposed by qdash_exporter.
+#
+# Notes on the queries:
+#
+# - Rules that look at the latest value use a [7d] lookback.
+#   Calibration data is sparse, so a bare selector usually returns nothing:
+#   the default lookback of an instant query is only 5 minutes.
+#
+# - C1 searches back [90d] for the last update.
+#   The last-update time has to stay resolvable well past the 2-week threshold.
+#
+# - There is one rule per metric rather than one regex covering several.
+#   Binary operators drop __name__, so combining metrics into a single rule
+#   leaves series that collide on identical label sets.
+#
+# - A3/A4 add two bool comparisons instead of using `or`.
+#   `or` is set union, not logical OR. These alerts must fire when EITHER
+#   condition holds, so the bool results are summed and compared with > 0.
+#   Use multiplication with > 0.5 for AND.
+#
+# - "every sample in the window" is written as max_over_time(...[21d]) < limit.
+#   A subquery would align its steps to absolute time boundaries and can miss
+#   the most recent sample.
+#
+# - QDash stores frequencies in GHz, so a +-5 MHz drift is written as 0.005.
+#   maximum_rabi_frequency is the exception: it is stored in MHz/a.u. (+-5).
+apiVersion: 1
+
+# Removing a rule from this file does not remove it from Grafana.
+# Its uid has to be listed here to delete it.
+deleteRules:
+  - orgId: 1
+    uid: qdash-a4-bell-fid            # A4 on bell_state_fidelity, no longer alerted on
+  - orgId: 1
+    uid: qdash-a7-readout-freq-drift  # A7 on readout_frequency, no longer alerted on
+
+groups:
+- orgId: 1
+  name: qdash_threshold_alerts
+  folder: alert_rules
+  interval: 5m
+  rules:
+  - uid: qdash-a1-t1-drop
+    title: A1_qdash_t1_drop
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: (max_over_time(qdash_qubit_t1[21d]) < bool (0.7 * median_over_time(qdash_qubit_t1[49d]))) * (count_over_time(qdash_qubit_t1[21d]) >= bool 3)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0.5
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: T1 has stayed below 70% of its 7-week median for the last 3 weeks.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A1
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a2-t2echo-drop
+    title: A2-1_qdash_t2_echo_drop
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: (max_over_time(qdash_qubit_t2_echo[21d]) < bool (0.7 * median_over_time(qdash_qubit_t2_echo[49d]))) * (count_over_time(qdash_qubit_t2_echo[21d]) >= bool 3)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0.5
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: T2 echo has stayed below 70% of its 7-week median for the last 3 weeks.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A2-1
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a2-t2star-drop
+    title: A2-2_qdash_t2_star_drop
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: (max_over_time(qdash_qubit_t2_star[21d]) < bool (0.7 * median_over_time(qdash_qubit_t2_star[49d]))) * (count_over_time(qdash_qubit_t2_star[21d]) >= bool 3)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0.5
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: T2 star has stayed below 70% of its 7-week median for the last 3 weeks.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A2-2
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a3-avg-gate-fid
+    title: A3_qdash_average_gate_fidelity_drop
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: ((last_over_time(qdash_qubit_average_gate_fidelity[7d]) / median_over_time(qdash_qubit_average_gate_fidelity[49d])) < bool 0.99) + (last_over_time(qdash_qubit_average_gate_fidelity[7d]) < bool 0.999)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: average_gate_fidelity dropped below 99% of its 7-week median, or below the spec value 0.999.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A3
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a4-zx90-fid
+    title: A4_qdash_zx90_gate_fidelity_drop
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: ((last_over_time(qdash_coupling_zx90_gate_fidelity[7d]) / median_over_time(qdash_coupling_zx90_gate_fidelity[49d])) < bool 0.98) + (last_over_time(qdash_coupling_zx90_gate_fidelity[7d]) < bool 0.99)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: zx90_gate_fidelity dropped below 98% of its 7-week median, or below the spec value 0.99.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A4
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a5-readout-fid
+    title: A5_qdash_average_readout_fidelity_drop
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: ((last_over_time(qdash_qubit_average_readout_fidelity[7d]) / median_over_time(qdash_qubit_average_readout_fidelity[49d])) < bool 0.98)
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: average_readout_fidelity dropped below 98% of its 7-week median.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A5
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a6-rabi-drift
+    title: A6_qdash_maximum_rabi_frequency_drift
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: abs(last_over_time(qdash_qubit_maximum_rabi_frequency[7d]) - last_over_time(qdash_qubit_maximum_rabi_frequency[7d] offset 7d))
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 5
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: maximum_rabi_frequency drifted by more than 5 MHz from the value one week ago.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A6
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+  - uid: qdash-a7-qubit-freq-drift
+    title: A7_qdash_qubit_frequency_drift
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: abs(last_over_time(qdash_qubit_qubit_frequency[7d]) - last_over_time(qdash_qubit_qubit_frequency[7d] offset 7d))
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 0.005
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: qubit_frequency drifted by more than 5 MHz (0.005 GHz) from the value one week ago.
+      currentValue: '{{ $values.A.Value }}'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: A7
+      test_item: 2-1
+      category: threshold
+      severity: warning
+    isPaused: false
+- orgId: 1
+  name: qdash_trend_alerts
+  folder: alert_rules
+  interval: 5m
+  rules:
+  - uid: qdash-b1-t1-trend
+    title: B1-1_qdash_t1_degradation_trend
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: -deriv(qdash_qubit_t1[70d]) * 604800 / avg_over_time(qdash_qubit_t1[70d]) * 100
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 10
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: T1 has been degrading by 10% or more per week over the last 10 weeks.
+      currentValue: '{{ $values.A.Value }}[%/week]'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: B1-1
+      test_item: 3-1
+      category: trend
+      severity: warning
+    isPaused: false
+  - uid: qdash-b1-t2_echo-trend
+    title: B1-2_qdash_t2_echo_degradation_trend
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: -deriv(qdash_qubit_t2_echo[70d]) * 604800 / avg_over_time(qdash_qubit_t2_echo[70d]) * 100
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 10
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: T2 echo has been degrading by 10% or more per week over the last 10 weeks.
+      currentValue: '{{ $values.A.Value }}[%/week]'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: B1-2
+      test_item: 3-1
+      category: trend
+      severity: warning
+    isPaused: false
+  - uid: qdash-b1-t2_star-trend
+    title: B1-3_qdash_t2_star_degradation_trend
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: -deriv(qdash_qubit_t2_star[70d]) * 604800 / avg_over_time(qdash_qubit_t2_star[70d]) * 100
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 10
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: T2 star has been degrading by 10% or more per week over the last 10 weeks.
+      currentValue: '{{ $values.A.Value }}[%/week]'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: B1-3
+      test_item: 3-1
+      category: trend
+      severity: warning
+    isPaused: false
+- orgId: 1
+  name: qdash_missing_alerts
+  folder: alert_rules
+  interval: 5m
+  rules:
+  - uid: qdash-c1-no-calibration
+    title: C1_qdash_calibration_missing
+    condition: C
+    data:
+    - refId: A
+      relativeTimeRange:
+        from: 600
+        to: 0
+      datasourceUid: vmcluster
+      model:
+        editorMode: code
+        expr: (time() - max by (chip_id) (tlast_over_time({__name__=~"qdash_(qubit|coupling)_.+"}[90d]))) / 604800
+        instant: true
+        intervalMs: 1000
+        legendFormat: __auto
+        maxDataPoints: 43200
+        range: false
+        refId: A
+    - refId: C
+      datasourceUid: __expr__
+      model:
+        conditions:
+        - evaluator:
+            params:
+            - 2
+            type: gt
+          operator:
+            type: and
+          query:
+            params:
+            - A
+          reducer:
+            params: []
+            type: last
+          type: query
+        datasource:
+          type: __expr__
+          uid: __expr__
+        expression: A
+        intervalMs: 1000
+        maxDataPoints: 43200
+        refId: C
+        type: threshold
+    noDataState: NoData
+    execErrState: Error
+    annotations:
+      summary: No QDash calibration metric has been updated for this chip for 2 weeks or more.
+      currentValue: '{{ $values.A.Value }}[weeks]'
+      resolvedMessage: '{{ $labels.alertname }} has been resolved.'
+    labels:
+      alert_id: C1
+      test_item: 4-1
+      category: missing
+      severity: critical
+    isPaused: false
